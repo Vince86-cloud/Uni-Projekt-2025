@@ -2,3 +2,6 @@ pandas
 yfinance
 matplotlib
 certifi
+curl_cffi
+dash
+plotly
