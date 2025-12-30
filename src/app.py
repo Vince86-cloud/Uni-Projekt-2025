@@ -2,8 +2,6 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-
-import pandas as pd
 import dash
 from dash import Dash, html, dcc, Input, Output, State
 import plotly.graph_objects as go
@@ -115,18 +113,6 @@ app.layout = html.Div(
                                 ),
                             ]
                         ),
-                        html.Div([
-                            html.Label("Zeitraum", style={"fontWeight": 600}),
-                            dcc.DatePickerRange(
-                                id="date-range",
-                                min_date_allowed="2000-01-01",
-                                max_date_allowed=None,
-                                start_date=None,
-                                end_date=None,
-                                display_format="YYYY-MM-DD",
-                                style={"padding": "4px"}
-                            ),
-                        ]),
                         html.Button(
                             "Daten laden",
                             id="load-button",
@@ -139,7 +125,7 @@ app.layout = html.Div(
                                 "borderRadius": "10px",
                                 "fontWeight": 600,
                                 "cursor": "pointer",
-                                "boxShadow": "0 4px 12px rgba(37, 99, 235, 0.3)"
+                                "boxShadow": "0 4px 12px rgba(37, 99, 235, 0.3)",
                             },
                         ),
                         html.Div(id="error-message", style={"color": "#c53030", "fontWeight": 600}),
@@ -184,10 +170,8 @@ app.layout = html.Div(
     Input("load-button", "n_clicks"),
     State("ticker-input", "value"),
     State("window-input", "value"),
-    State("date-range", "start_date"),
-    State("date-range", "end_date"),
 )
-def update_dashboard(n_clicks, ticker, window, start_date, end_date):
+def update_dashboard(n_clicks, ticker, window):
     if not n_clicks:
         return _empty_figure("Bitte Ticker laden"), "-", "-", "-", "-", ""
 
@@ -206,22 +190,6 @@ def update_dashboard(n_clicks, ticker, window, start_date, end_date):
         df = load_data(ticker_clean)
         if df is None or df.empty:
             raise ValueError("Keine Daten verfuegbar.")
-        # Zeitraum filtern, falls gesetzt
-        idx = pd.to_datetime(df.index)
-        if idx.tz is not None:
-            idx = idx.tz_localize(None)
-        if start_date:
-            start_dt = pd.to_datetime(start_date)
-            if start_dt.tzinfo is not None:
-                start_dt = start_dt.tz_localize(None)
-            df = df[idx >= start_dt]
-        if end_date:
-            end_dt = pd.to_datetime(end_date)
-            if end_dt.tzinfo is not None:
-                end_dt = end_dt.tz_localize(None)
-            df = df[idx <= end_dt]
-        if df.empty:
-            raise ValueError("Keine Daten im gewählten Zeitraum.")
         df = add_moving_average(df, window=window)
         stats = compute_basic_stats(df)
         fig = _build_figure(df, ticker_clean)
