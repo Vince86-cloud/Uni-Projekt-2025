@@ -11,3 +11,9 @@ data_cache/
 # Editor / OS
 .vscode/
 .env
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Python cache (zusätzlich)
+src/__pycache__/

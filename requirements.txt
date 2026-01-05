@@ -5,3 +5,4 @@ certifi
 curl_cffi
 dash
 plotly
+statsmodels
