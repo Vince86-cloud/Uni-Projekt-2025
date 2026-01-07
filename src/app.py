@@ -7,8 +7,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 
-from .data_fetch import load_data
-from .analysis import (
+from data_fetch import load_data
+from analysis import (
     compute_basic_stats,
     add_moving_average,
     add_ema,
@@ -528,6 +528,10 @@ def update_dashboard(n_clicks, ticker, period, window, forecast_steps, overlays)
         error_msg,
     )
 
+def main():
+    app.run(debug=True)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    main()
+#if __name__ == "__main__":
+#    app.run(debug=True)

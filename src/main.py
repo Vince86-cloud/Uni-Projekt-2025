@@ -1,6 +1,7 @@
-from .data_fetch import load_data
-from .analysis import compute_basic_stats, add_moving_average
-from .visualize import plot_history_with_ma
+from data_fetch import load_data
+from analysis import compute_basic_stats, add_moving_average
+from visualize import plot_history_with_ma
+from app import main as app_main
 
 
 def main() -> None:
@@ -34,3 +35,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    app_main()
