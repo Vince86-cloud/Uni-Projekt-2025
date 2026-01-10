@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import datetime 
 
-
 # Die Klasse repräsentiert ein einzelnes Finanz-Asset
 # und kapselt relevante Kennzahlen und Auswertungen zu genau einem Asset zusammen. 
 # Sie dient als Container für den Vergleich mehrerer Assets.
@@ -19,8 +18,8 @@ class Asset:
         try:
             start_date = pd.to_datetime(start_date)
             end_date = pd.to_datetime(end_date)
-        except:
-            raise ValueError("Geben Sie ein gültiges Datum ein")   
+        except Exception as e:
+            raise ValueError("Geben Sie ein gültiges Datum ein") from e   
 
         if pd.isna(start_date) or pd.isna(end_date):
             raise ValueError("Start- und Enddatum dürfen nicht leer sein")
@@ -52,7 +51,6 @@ class Asset:
 
         return period
 
-
     # Validiert einen relativen Zeitraum in Tagen.
     # Prüft Typ, Wertebereich und ob der Zeitraum durch die vorhandenen Daten abgedeckt ist
     def _validate_days(self, days):
@@ -76,99 +74,65 @@ class Asset:
             raise ValueError("Zeitraum enthält weniger als zwei Handelstage")
             
         return period
-        
-    # Berechnet die Preisentwicklung eines Assets über einen bestimmten Zeitraum
-    # auf Basis der Close-Preise.
-    def price_development(self,start_date, end_date):
-        period = self._validate_date_range(start_date, end_date)
+
+    # Liefert den relevanten Zeitraum (DataFrame-Ausschnitt) für eine Kennzahlberechnung.
+    # Abhängig von den übergebenen Parametern wird entweder ein absoluter Zeitraum
+    # (start_date & end_date) oder ein relativer Zeitraum (days) validiert und zurückgegeben.
+    # Stellt sicher, dass genau eine der beiden Varianten verwendet wird.
+    def _get_period(self, start_date=None, end_date=None, days=None):
+        if days is not None:
+            return self._validate_days(days)
+        elif start_date is not None and end_date is not None:
+            return self._validate_date_range(start_date, end_date)
+        else:
+            raise ValueError("Entweder start_date & end_date oder days angeben")
+
+    # Berechnet die Preisentwicklung eines Assets über einen absoluten oder 
+    # relativen Zeitraum (z.B. letzte 30/90/365 Tage) auf Basis der Close-Preise.
+    def price_development(self,start_date=None, end_date=None, days=None):
+        period = self._get_period(start_date=start_date, end_date=end_date, days=days)
         first_close = period['Close'].iloc[0]
         last_close  = period['Close'].iloc[-1]
         price_development = last_close - first_close
         return price_development
 
-    # Berechnet die Preisentwicklung eines Assets über einen relativen Zeitraum
-    # (z.B. letzte 30/90/365 Tage) ausgehend vom aktuellen Datum
-    # auf Basis der Close-Preise.
-    def price_development_period(self, days):
-        period = self._validate_days(days)
-        first_close = period['Close'].iloc[0]
-        last_close  = period['Close'].iloc[-1]
-        price_development_period = last_close - first_close
-        return price_development_period
-
-    # Berechnet die prozentuale Rendite eines Assets über einen bestimmten Zeitraum
-    # auf Basis der Close-Preise.
-    def return_percentage(self, start_date, end_date):
-        period = self._validate_date_range(start_date, end_date)
+    # Berechnet die prozentuale Rendite eines Assets über einen absoluten oder 
+    # relativen Zeitraum (z.B. letzte 30/90/365 Tage) auf Basis der Close-Preise.
+    def return_percentage(self, start_date=None, end_date=None, days=None):
+        period = self._get_period(start_date=start_date, end_date=end_date, days=days)
         first_close = period['Close'].iloc[0]
         last_close  = period['Close'].iloc[-1]
         return_percentage = ((last_close - first_close) / first_close) * 100
         return return_percentage
 
-    # Berechnet die prozentuale Preisentwicklung eines Assets über einen relativen Zeitraum
-    # (z.B. letzte 30/90/365 Tage) ausgehend vom aktuellen Datum
-    # auf Basis der Close-Preise.
-    def return_percentage_period(self,days):
-        period = self._validate_days(days)
-        first_close = period['Close'].iloc[0]
-        last_close  = period['Close'].iloc[-1]
-        return_percentage_period = ((last_close - first_close) / first_close) * 100
-        return return_percentage_period
-
-    # Berechnet den Kursverlauf eines Assets auf 100 normalisiert über einen bestimmten Zeitraum
-    # auf Basis der Close-Preise.
-    def normalized_price_series(self,start_date, end_date):
-        period = self._validate_date_range(start_date, end_date)
+    # Berechnet den Kursverlauf eines Assets auf 100 normalisiert über einen absoluten oder
+    # relativen Zeitraum (z.B. letzte 30/90/365 Tage) auf Basis der Close-Preise.
+    def normalized_price_series(self,start_date=None, end_date=None, days=None):
+        period = self._get_period(start_date=start_date, end_date=end_date, days=days)
         close = period['Close']
         price_series = (close / close.iloc[0]) * 100
         return price_series
 
     # Berechnet die normierte Gesamtperformance eines Assets über einen festen Zeitraum.
     # Das Ergebnis ist der Endwert der auf 100 normierten Kursreihe.
-    def normalized_performance(self,start_date, end_date):
-        period = self.normalized_price_series(start_date=start_date,end_date=end_date)
-        end_value = period.iloc[-1]
-        return end_value
-
-    # Berechnet den Kursverlauf eines Assets auf 100 normalisiert über einen relativen Zeitraum
-    # (z.B. letzte 30/90/365 Tage) ausgehend vom aktuellen Datum
-    # auf Basis der Close-Preise.
-    def normalized_price_series_period(self, days):
-        period = self._validate_days(days)
-        close = period['Close']
-        price_series = (close / close.iloc[0]) * 100
-        return price_series
-
-    # Berechnet die normierte Gesamtperformance eines Assets über einen relativen Zeitraum (z.B. letzte 30/90/365 Tage).
-    # Das Ergebnis ist der Endwert der auf 100 normierten Kursreihe.
-    def normalized_performance_period(self,days):
-        period = self.normalized_price_series_period(days=days)
-        end_value = period.iloc[-1]
+    def normalized_performance(self,start_date=None, end_date=None, days=None):
+        normalized_series = self.normalized_price_series(start_date=start_date,end_date=end_date,days=days)
+        end_value = normalized_series.iloc[-1]
         return end_value
 
     # Berechnet die annualisierte Volatilität eines Assets über einen bestimmten Zeitraum
     # auf Basis der Close-Preise.
-    def volatility(self, start_date, end_date):
-        period = self._validate_date_range(start_date, end_date)
-        close = period['Close']
-        daily_returns = close.pct_change()
-        volatility = daily_returns.std(ddof=1) * np.sqrt(252)
-        return volatility
-
-    # Berechnet die annualisierte Volatilität eines Assets über einen relativen Zeitraum
-    # (z.B. letzte 30/90/365 Tage) ausgehend vom aktuellen Datum
-    # auf Basis der Close-Preise.
-    def volatility_period(self, days):
-        period = self._validate_days(days)
+    def volatility(self, start_date=None, end_date=None, days=None):
+        period = self._get_period(start_date=start_date, end_date=end_date, days=days)
         close = period['Close']
         daily_returns = close.pct_change()
         volatility = daily_returns.std(ddof=1) * np.sqrt(252)
         return volatility
 
     # Berechnet den Verlust eines Assets vom letzten Höchststand bis zu einem späteren Tiefpunkt (maximalen Drawdown)
-    # über einen bestimmten Zeitraum auf Basis der Close-Preise
-    def drawdown(self, start_date, end_date):
-        period = self._validate_date_range(start_date, end_date)
+    # über einen absoluten oder relativen Zeitraum (z.B. letzte 30/90/365 Tage) auf Basis der Close-Preise
+    def drawdown(self, start_date=None, end_date=None, days=None):
+        period = self._get_period(start_date=start_date, end_date=end_date, days=days)
         close = period['Close']
         daily_returns = close.pct_change()
         daily_returns.fillna(0.0, inplace=True)
@@ -178,25 +142,11 @@ class Asset:
         max_drawdown = drawdown.min()
         return max_drawdown
 
-    # Berechnet den Verlust eines Assets vom letzten Höchststand bis zu einem späteren Tiefpunkt (maximalen Drawdown)
-    # über einen relativen Zeitraum (z.B. letzte 30/90/365 Tage) ausgehend vom aktuellen Datum
-    # auf Basis der Close-Preise.
-    def drawdown_series(self, days):
-        period = self._validate_days(days)
-        close = period['Close']
-        daily_returns = close.pct_change()
-        daily_returns.fillna(0.0, inplace=True)
-        cumulative_returns = (1 + daily_returns).cumprod()
-        cumulative_max = cumulative_returns.cummax()
-        drawdown = (cumulative_returns - cumulative_max) / cumulative_max
-        max_drawdown = drawdown.min()
-        return max_drawdown
-
-
-    # Berechnet den besten Tagesgewinn eines Assets über einen bestimmten Zeitraum
-    # auf Basis der täglichen Renditen aus den Close-Preisen.
-    def best_day(self,start_date, end_date):
-        period = self._validate_date_range(start_date, end_date)
+    # Berechnet den besten Tagesgewinn eines Assets über einen absoluten Zeitraum oder 
+    # relativen Zeitraum (z.B. letzte 30/90/365 Tage) auf Basis der täglichen Renditen 
+    # aus den Close-Preisen.
+    def best_day(self,start_date=None, end_date=None, days=None):
+        period = self._get_period(start_date=start_date, end_date=end_date, days=days)
         close = period['Close']
         daily_returns = close.pct_change()
         best_return = daily_returns.max()
@@ -205,36 +155,11 @@ class Asset:
                 "date": best_date
                }
 
-    # Berechnet den besten Tagesgewinn eines Assets über einen relativen Zeitraum 
-    # (z.B. letzte 30/90/365 Tage) ausgehend vom aktuellen Datum auf Basis
-    # der täglichen Renditen aus den Close-Preise.
-    def best_day_period(self, days):
-        period = self._validate_days(days)
-        close = period['Close']
-        daily_returns = close.pct_change()
-        best_return = daily_returns.max()
-        best_date = daily_returns.idxmax()
-        return {"return": best_return,
-                "date": best_date
-               }
-
-    # Berechnet den schlechtesten Tagesverlust eines Assets über einen bestimmten Zeitraum
-    # auf Basis der täglichen Renditen aus den Close-Preisen.
-    def worst_day(self,start_date, end_date):
-        period = self._validate_date_range(start_date, end_date)
-        close = period['Close']
-        daily_returns = close.pct_change()
-        worst_return = daily_returns.min()
-        worst_date = daily_returns.idxmin()
-        return {"return": worst_return,
-                "date": worst_date
-               }
-
-    # Berechnet den schlechtesten Tagesverlust eines Assets über einen relativen Zeitraum 
-    # (z.B. letzte 30/90/365 Tage) ausgehend vom aktuellen Datum auf Basis
-    # der täglichen Renditen aus den Close-Preise.
-    def worst_day_period(self, days):
-        period = self._validate_days(days)
+    # Berechnet den schlechtesten Tagesverlust eines Assets über einen absoluten oder
+    # relativen Zeitraum (z.B. letzte 30/90/365 Tage) auf Basis der täglichen Renditen 
+    # aus den Close-Preisen.
+    def worst_day(self,start_date=None, end_date=None, days=None):
+        period = self._get_period(start_date=start_date, end_date=end_date, days=days)
         close = period['Close']
         daily_returns = close.pct_change()
         worst_return = daily_returns.min()
@@ -247,48 +172,16 @@ class Asset:
     # oder relativen Zeitraum (Tage) gebündelt zusammen und gibt die Ergebnisse 
     # als Dictionary zurück
     def summary_metrics(self, start_date=None, end_date=None, days=None):
-        if (start_date is not None and end_date is not None) and days is None:
-            price_development = self.price_development(start_date, end_date)
-            return_percentage = self.return_percentage(start_date, end_date)
-            normalized_price_series = self.normalized_price_series(start_date, end_date)
-            normalized_performance = self.normalized_performance(start_date, end_date)
-            volatility = self.volatility(start_date, end_date)
-            drawdown = self.drawdown(start_date, end_date)
-            best_day = self.best_day(start_date, end_date)
-            worst_day = self.worst_day(start_date, end_date)
-
-            return {"price_development": price_development,
-                    "return_percentage": return_percentage,
-                    "normalized_price_series": normalized_price_series,
-                    "normalized_performance": normalized_performance,
-                    "volatility": volatility,
-                    "drawdown": drawdown,
-                    "best_day":best_day,
-                    "worst_day": worst_day
-                   }
-            
-        elif days is not None and (start_date is None and end_date is None):
-            price_development_period = self.price_development_period(days)
-            return_percentage_period = self.return_percentage_period(days)
-            normalized_price_series_period = self.normalized_price_series_period(days)
-            normalized_performance_period = self.normalized_performance_period(days)
-            volatility_period = self.volatility_period(days)
-            drawdown_series = self.drawdown_series(days)
-            best_day_period =  self.best_day_period(days)
-            worst_day_period = self.worst_day_period(days)
-
-            return {"price_development": price_development_period,
-                    "return_percentage": return_percentage_period,
-                    "normalized_price_series": normalized_price_series_period,
-                    "normalized_performance": normalized_performance_period,
-                    "volatility": volatility_period,
-                    "drawdown": drawdown_series,
-                    "best_day":best_day_period,
-                    "worst_day": worst_day_period
-                   }
-        else:
-            raise ValueError("Entweder einen start_date & end_date oder days angeben")
-
+        return {
+            "price_development": self.price_development(start_date=start_date, end_date=end_date, days=days),
+            "return_percentage": self.return_percentage(start_date=start_date, end_date=end_date, days=days),
+            "normalized_price_series": self.normalized_price_series(start_date=start_date, end_date=end_date, days=days),
+            "normalized_performance": self.normalized_performance(start_date=start_date, end_date=end_date, days=days),
+            "volatility": self.volatility(start_date=start_date, end_date=end_date, days=days),
+            "drawdown": self.drawdown(start_date=start_date, end_date=end_date, days=days),
+            "best_day": self.best_day(start_date=start_date, end_date=end_date, days=days),
+            "worst_day": self.worst_day(start_date=start_date, end_date=end_date, days=days),
+        }
 
 # Die Klasse repräsentiert einen Vergleich mehrerer Finanz-Assets.
 # Sie vergleicht zentrale Kennzahlen (z.B. Rendite, Volatilität, Drawdown)
