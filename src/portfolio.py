@@ -1,31 +1,41 @@
 """
-Portfolio-Kennzahlen-Dashboard (Dash + yfinance) – Equal Weight + Graph + FX-Umrechnung
+Portfolio-Analyse-Modul (yfinance) – Equal Weight + FX-Umrechnung
 
 Ziel:
-- Nutzer gibt mehrere Ticker ein (komma-separiert)
-- App lädt historische Daten via yfinance (auto_adjust=True)
-- App konvertiert alle Asset-Preisreihen in eine Basiswährung (EUR oder USD)
-- App berechnet Kennzahlen (Return, Volatilität, Max Drawdown) für:
-  * jedes Asset (in Basiswährung)
-  * das Equal-Weight-Portfolio (in Basiswährung)
-- App visualisiert im Chart normierte Verläufe (Start=100), ebenfalls in Basiswährung
+- Dieses Modul stellt Funktionen zur Portfolio-Analyse bereit und ist für die
+  Integration in ein übergeordnetes Dashboard (z.B. Dash-App) gedacht.
+- Nutzer können mehrere Ticker (komma-separiert) analysieren.
+- Historische Kursdaten werden über yfinance geladen (auto_adjust=True).
+- Alle Asset-Preisreihen werden in eine gemeinsame Basiswährung
+  (z.B. EUR oder USD) umgerechnet.
+- Es werden Kennzahlen (Return, Volatilität, Max Drawdown) berechnet für:
+  * jedes einzelne Asset (in Basiswährung)
+  * ein Equal-Weight-Portfolio (in Basiswährung)
+- Zusätzlich können normierte Kursverläufe (Start=100) für Assets und Portfolio
+  visualisiert werden.
 
 Warum FX-Umrechnung nötig ist:
-- Ein Portfolio mischt Werte (Preise/Renditen) nur sinnvoll, wenn alle Assets in derselben
-  Währung bewertet werden. Sonst entstehen methodische Fehler.
+- Ein Portfolio kombiniert Werte (Preise und Renditen) nur dann sinnvoll,
+  wenn alle Assets in derselben Währung bewertet werden.
+- Ohne FX-Umrechnung entstehen methodische Verzerrungen und Fehlinterpretationen.
 
 FX-Umrechnungsprinzip:
-- Wenn wir eine FX-Quote "BASEQUOTE=X" haben (z.B. EURUSD=X),
-  dann bedeutet der Kurs: QUOTE pro 1 BASE.
-  Beispiel EURUSD = 1.10 => 1 EUR = 1.10 USD
+- Wenn eine FX-Quote "BASEQUOTE=X" vorliegt (z.B. EURUSD=X),
+  bedeutet der Kurs: QUOTE pro 1 BASE.
+  Beispiel:
+    EURUSD = 1.10  =>  1 EUR = 1.10 USD
 
 Umrechnung:
-- Preis in QUOTE -> BASE:  Preis_BASE = Preis_QUOTE / (BASEQUOTE)
-- Preis in BASE  -> QUOTE: Preis_QUOTE = Preis_BASE * (BASEQUOTE)
+- Preis in QUOTE -> BASE:
+    Preis_BASE = Preis_QUOTE / (BASEQUOTE)
+- Preis in BASE -> QUOTE:
+    Preis_QUOTE = Preis_BASE * (BASEQUOTE)
 
-Wir versuchen FX-Paare automatisch zu finden:
-1) bevorzugt: {base}{from}=X (z.B. EURUSD=X, wenn from=USD und base=EUR)
-2) falls nicht vorhanden: {from}{base}=X und dann invertierte Rechenregel
+Automatische FX-Paar-Erkennung:
+1) Bevorzugt: {base}{from}=X
+   (z.B. EURUSD=X, wenn from=USD und base=EUR)
+2) Falls nicht verfügbar: {from}{base}=X
+   → Umrechnung erfolgt mit invertierter Rechenregel
 """
 
 from __future__ import annotations
@@ -35,8 +45,6 @@ from datetime import date
 import numpy as np
 import pandas as pd
 import yfinance as yf
-
-from dash import Dash, dcc, html, dash_table, Input, Output, State
 import plotly.graph_objects as go
 
 
@@ -126,7 +134,7 @@ def download_prices(tickers: list[str], years_back: float = 6.0) -> pd.DataFrame
     if isinstance(data.columns, pd.MultiIndex):
         close = data["Close"].copy()
     else:
-        # Ein Ticker => normales DF
+        # Ein Ticker => normales DF; Spaltenname auf Ticker setzen
         close = data[["Close"]].copy()
         close.columns = tickers
 
@@ -137,7 +145,7 @@ def download_prices(tickers: list[str], years_back: float = 6.0) -> pd.DataFrame
 # 3) FX / Währungslogik
 # =============================================================================
 
-# Kleines In-Memory-Cache, damit yfinance.info nicht bei jedem Klick unnötig oft abgefragt wird.
+# In-Memory-Cache, damit yfinance.info nicht bei jedem Aufruf unnötig oft abgefragt wird
 _CURRENCY_CACHE: dict[str, str | None] = {}
 
 
@@ -145,12 +153,12 @@ def get_ticker_currency(ticker: str) -> str | None:
     """
     Bestimmt die Handelswährung eines Tickers über yfinance (Ticker.info["currency"]).
 
-    Warum try/except?
+    Robustheit:
     - yfinance.info kann gelegentlich fehlschlagen (Rate limits, Netzwerk, fehlende Felder).
-    - Für ein robustes Dashboard sollte das abgefangen werden.
+      Daher try/except.
 
-    Caching:
-    - Wir speichern Ergebnisse in _CURRENCY_CACHE, um wiederholte Abfragen zu reduzieren.
+    Performance:
+    - Ergebnisse werden gecached (in _CURRENCY_CACHE), um wiederholte Abfragen zu reduzieren.
     """
     if ticker in _CURRENCY_CACHE:
         return _CURRENCY_CACHE[ticker]
@@ -227,17 +235,17 @@ def convert_prices_to_base_currency(
 
     Eingaben:
     - prices: DataFrame mit Spalten=ticker und Preisen in jeweiliger Handelswährung
-    - base_currency: "EUR" oder "USD" (im UI auswählbar)
+    - base_currency: "EUR" oder "USD"
     - years_back: Historie, für die FX-Reihen geladen werden
 
     Ausgaben:
     - converted_prices: DataFrame in Basiswährung (nur konvertierbare Ticker)
     - currencies: dict {ticker: currency} zur Transparenz/Statusanzeige
-    - warnings: Liste von Hinweisen, z.B. wenn ein Ticker ausgeschlossen wurde
+    - warnings: Liste von Hinweisen (z.B. ausgeschlossene Ticker)
 
     Designentscheidung:
     - Wenn ein Ticker nicht konvertierbar ist (Währung unbekannt oder FX fehlt),
-      wird er aus converted_prices entfernt, damit Portfolio/Chart nicht „falsch“ werden.
+      wird er ausgeschlossen, um methodische Fehler zu vermeiden.
     """
     if prices.empty:
         return prices, {}, ["Keine Preisdaten vorhanden."]
@@ -248,7 +256,7 @@ def convert_prices_to_base_currency(
     # Handelswährungen bestimmen
     currencies: dict[str, str | None] = {t: get_ticker_currency(t) for t in prices.columns}
 
-    # Cache für FX-Serien, damit ein FX-Ticker nur einmal geladen wird.
+    # Cache für FX-Serien, damit ein FX-Ticker nur einmal geladen wird
     fx_cache: dict[tuple[str, str], tuple[pd.Series, str, bool]] = {}
 
     converted = pd.DataFrame(index=prices.index)
@@ -278,20 +286,18 @@ def convert_prices_to_base_currency(
         fx_series, fx_ticker_used, direct_mode = fx_cache[key]
 
         if fx_series.empty:
-            warnings.append(
-                f"{ticker}: FX-Rate für {ccy}->{base_currency} nicht verfügbar -> ausgeschlossen."
-            )
+            warnings.append(f"{ticker}: FX-Rate für {ccy}->{base_currency} nicht verfügbar -> ausgeschlossen.")
             continue
 
-        # Datumsindex angleichen und fehlende FX-Werte per ffill auffüllen
+        # Index angleichen und fehlende FX-Werte per ffill auffüllen
         fx_aligned = fx_series.reindex(prices.index).ffill()
 
         # Umrechnung je nach gefundenem FX-Paar
         if direct_mode:
-            # fx_ticker = base+from; fx = from pro 1 base => price_base = price_from / fx
+            # fx = from pro 1 base => price_base = price_from / fx
             converted[ticker] = prices[ticker] / fx_aligned
         else:
-            # fx_ticker = from+base; fx = base pro 1 from => price_base = price_from * fx
+            # fx = base pro 1 from => price_base = price_from * fx
             converted[ticker] = prices[ticker] * fx_aligned
 
     # Entferne Tage, an denen alle konvertierten Assets NaN sind
@@ -315,10 +321,10 @@ def build_equal_weight_portfolio_index(price_df: pd.DataFrame, base_value: float
 
     Equal Weight (mit täglichem Rebalancing):
     - tägliche Rendite je Asset: pct_change
-    - Portfolio-Rendite je Tag: Durchschnitt über Assets (mean(axis=1))
+    - Portfolio-Rendite je Tag: Durchschnitt über Assets
 
     Umgang mit fehlenden Daten:
-    - Wir ffillen vor Renditeberechnung, um Handelskalender-Differenzen abzufangen.
+    - ffill vor Renditeberechnung, um Handelskalender-Differenzen abzufangen
     """
     if price_df.empty or price_df.shape[1] == 0:
         return pd.Series(dtype=float)
@@ -339,7 +345,7 @@ def build_equal_weight_portfolio_index(price_df: pd.DataFrame, base_value: float
 def compute_max_drawdown(price_series: pd.Series) -> float:
     """
     Maximum Drawdown:
-    - größter prozentualer Rückgang vom bisherigen Hoch.
+    - größter prozentualer Rückgang vom bisherigen Hoch
 
     drawdown_t = price_t / cummax(price)_t - 1
     MDD = min(drawdown_t)
@@ -376,7 +382,7 @@ def slice_period(prices: pd.Series, years: float | None) -> pd.Series:
     """
     Schneidet eine Zeitreihe auf:
     - YTD: ab 01.01. des aktuellen Jahres (years=None)
-    - sonst: letzte N Jahre (DateOffset)
+    - sonst: letzte N Jahre
     """
     if prices.empty:
         return prices
@@ -395,9 +401,9 @@ def slice_period(prices: pd.Series, years: float | None) -> pd.Series:
 
 def build_metrics_table(price_df_with_portfolio: pd.DataFrame) -> pd.DataFrame:
     """
-    Erstellt einen DataFrame für die Tabelle:
+    Erstellt einen DataFrame für die Kennzahlen-Tabelle:
     - Zeilen: Assets (Ticker + Portfolio)
-    - Spalten: Kennzahlen je Zeitraum
+    - Spalten: Kennzahlen je Zeitraum (YTD/1Y/3Y/5Y)
     """
     if price_df_with_portfolio.empty:
         return pd.DataFrame()
@@ -421,7 +427,7 @@ def build_metrics_table(price_df_with_portfolio: pd.DataFrame) -> pd.DataFrame:
 
 
 # =============================================================================
-# 6) Formatierung für die Anzeige
+# 6) Formatierung für die Anzeige (Dash-DataTable)
 # =============================================================================
 
 def format_percent(x: float) -> str:
@@ -433,7 +439,7 @@ def format_percent(x: float) -> str:
 
 def make_table_records(df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
     """
-    Wandelt DataFrame in Dash-DataTable-Format:
+    Wandelt DataFrame in Dash-DataTable-Format um:
     - records: list[dict]
     - columns: list[dict]
     """
@@ -452,15 +458,13 @@ def make_table_records(df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
 
 
 # =============================================================================
-# 7) Chart-Erstellung
+# 7) Chart-Erstellung (Plotly)
 # =============================================================================
 
 def normalize_to_100(series: pd.Series) -> pd.Series:
     """
     Normiert eine Zeitreihe auf Startwert 100:
     norm_t = series_t / series_0 * 100
-
-    Damit lassen sich Verläufe unterschiedlicher Assets visuell vergleichen.
     """
     s = series.dropna()
     if s.shape[0] < 2:
@@ -470,10 +474,8 @@ def normalize_to_100(series: pd.Series) -> pd.Series:
 
 def build_price_figure(prices_base: pd.DataFrame, portfolio_index: pd.Series, base_currency: str) -> go.Figure:
     """
-    Baut die Plotly-Figure für den Chart.
-
-    Inhalt:
-    - Alle Asset-Zeitreihen (in Basiswährung), normiert auf 100
+    Baut die Plotly-Figure für den Chart:
+    - Asset-Zeitreihen (Basiswährung), normiert auf 100
     - Portfolio-Index, ebenfalls normiert auf 100
     """
     fig = go.Figure()
@@ -485,13 +487,15 @@ def build_price_figure(prices_base: pd.DataFrame, portfolio_index: pd.Series, ba
 
     p_norm = normalize_to_100(portfolio_index)
     if not p_norm.empty:
-        fig.add_trace(go.Scatter(
-            x=p_norm.index,
-            y=p_norm.values,
-            mode="lines",
-            name=portfolio_index.name,
-            line=dict(width=4)
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=p_norm.index,
+                y=p_norm.values,
+                mode="lines",
+                name=portfolio_index.name,
+                line=dict(width=4),
+            )
+        )
 
     fig.update_layout(
         title=f"Kursverläufe (Start=100) in Basiswährung {base_currency}",
@@ -502,148 +506,3 @@ def build_price_figure(prices_base: pd.DataFrame, portfolio_index: pd.Series, ba
         margin=dict(l=40, r=20, t=60, b=40),
     )
     return fig
-
-
-# =============================================================================
-# 8) Dash App
-# =============================================================================
-
-app = Dash(__name__)
-server = app.server
-
-app.layout = html.Div(
-    style={"maxWidth": "1250px", "margin": "40px auto", "fontFamily": "Arial"},
-    children=[
-        html.H2("Portfolio-Kennzahlen (yfinance + Dash) – Equal Weight + Graph + FX"),
-
-        html.Div(
-            style={"marginBottom": "10px", "display": "flex", "gap": "14px", "alignItems": "center"},
-            children=[
-                html.Div(children=[
-                    html.Label("Ticker (komma-separiert):"),
-                    dcc.Input(
-                        id="ticker-input",
-                        type="text",
-                        value="AAPL,MSFT,GLD",
-                        style={"width": "420px", "marginLeft": "10px"},
-                    ),
-                ]),
-                html.Div(children=[
-                    html.Label("Basiswährung:"),
-                    dcc.Dropdown(
-                        id="base-currency",
-                        options=[
-                            {"label": "EUR", "value": "EUR"},
-                            {"label": "USD", "value": "USD"},
-                        ],
-                        value="EUR",
-                        clearable=False,
-                        style={"width": "140px"},
-                    ),
-                ]),
-                html.Button("Aktualisieren", id="btn-run", n_clicks=0),
-            ],
-        ),
-
-        html.Div(
-            style={"marginBottom": "14px", "color": "#444"},
-            children=[
-                html.Small(
-                    "Hinweis: Portfolio und Kennzahlen werden nach FX-Umrechnung in der Basiswährung berechnet. "
-                    "Volatilität ist annualisiert (√252). Portfolio = Equal Weight mit täglichem Rebalancing."
-                )
-            ],
-        ),
-
-        html.Div(id="status-text", style={"marginBottom": "10px", "color": "#b00"}),
-
-        dcc.Graph(id="price-graph", figure=go.Figure(), style={"height": "520px"}),
-
-        html.H3("Kennzahlen-Tabelle", style={"marginTop": "24px"}),
-
-        dash_table.DataTable(
-            id="metrics-table",
-            data=[],
-            columns=[],
-            style_table={"overflowX": "auto"},
-            style_cell={"padding": "8px", "textAlign": "left", "whiteSpace": "normal"},
-            style_header={"fontWeight": "bold"},
-        ),
-    ],
-)
-
-
-@app.callback(
-    Output("metrics-table", "data"),
-    Output("metrics-table", "columns"),
-    Output("price-graph", "figure"),
-    Output("status-text", "children"),
-    Input("btn-run", "n_clicks"),
-    State("ticker-input", "value"),
-    State("base-currency", "value"),
-)
-def update_dashboard(n_clicks: int, raw_tickers: str, base_currency: str):
-    """
-    Callback-Ablauf:
-    1) Ticker parsen
-    2) Rohpreise laden (je Asset in Handelswährung)
-    3) Preise in Basiswährung konvertieren (FX-Logik)
-    4) Portfolio-Index berechnen (Equal Weight) in Basiswährung
-    5) Chart erstellen
-    6) Kennzahlen-Tabelle erstellen (Assets + Portfolio)
-    7) Status-/Warnhinweise ausgeben
-    """
-    tickers = parse_tickers(raw_tickers)
-
-    if not tickers:
-        return [], [], go.Figure(), "Bitte mindestens einen Ticker eingeben (z.B. AAPL oder AAPL,MSFT)."
-
-    prices_raw = download_prices(tickers, years_back=6.0)
-    if prices_raw.empty:
-        return [], [], go.Figure(), "Keine Daten erhalten. Prüfe Ticker-Symbole und Internetverbindung."
-
-    # Hinweis: yfinance liefert evtl. nicht für alle gewünschten Ticker Daten
-    available_raw = set(prices_raw.columns)
-    missing_raw = [t for t in tickers if t not in available_raw]
-
-    # FX-Konvertierung: nur konvertierbare Assets bleiben übrig
-    prices_base, currencies, fx_warnings = convert_prices_to_base_currency(
-        prices_raw, base_currency=base_currency, years_back=6.0
-    )
-
-    if prices_base.empty:
-        status_lines = []
-        if missing_raw:
-            status_lines.append(f"Keine Preisdaten für: {', '.join(missing_raw)}")
-        status_lines.extend(fx_warnings)
-        return [], [], go.Figure(), " | ".join(status_lines)
-
-    # Portfolio und Chart nur auf Basiswährung
-    portfolio_index = build_equal_weight_portfolio_index(prices_base, base_value=100.0)
-    fig = build_price_figure(prices_base, portfolio_index, base_currency=base_currency)
-
-    # Tabelle: Assets + Portfolio
-    combined = prices_base.copy()
-    combined[portfolio_index.name] = portfolio_index
-
-    metrics_df = build_metrics_table(combined)
-    records, columns = make_table_records(metrics_df)
-
-    # Statusmeldungen zusammensetzen
-    status_lines: list[str] = []
-    if missing_raw:
-        status_lines.append(f"Keine Preisdaten für: {', '.join(missing_raw)}")
-
-    # Zeige zusätzlich Währungsinfo (hilfreich für Dozent)
-    # (nur kurz – sonst wird es zu lang)
-    used_assets = list(prices_base.columns)
-    status_lines.append(f"Verwendete Assets (in {base_currency}): {', '.join(used_assets)}")
-
-    # FX-Warnungen
-    status_lines.extend(fx_warnings)
-
-    return records, columns, fig, " | ".join(status_lines)
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
