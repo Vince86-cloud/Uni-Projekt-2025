@@ -2,8 +2,6 @@ numpy
 pandas
 yfinance
 matplotlib
-certifi
-curl_cffi
+curl-cffi
 dash
 plotly
-statsmodels

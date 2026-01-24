@@ -46,7 +46,20 @@ except Exception:
 
 app = Dash(__name__, title="Finanz-Dashboard", suppress_callback_exceptions=True)
 server = app.server
-
+POPULAR_TICKERS = [
+    {"label": "Apple (AAPL)", "value": "AAPL"},
+    {"label": "Microsoft (MSFT)", "value": "MSFT"},
+    {"label": "Alphabet (GOOGL)", "value": "GOOGL"},
+    {"label": "Amazon (AMZN)", "value": "AMZN"},
+    {"label": "Tesla (TSLA)", "value": "TSLA"},
+    {"label": "Bitcoin (BTC-USD)", "value": "BTC-USD"},
+    {"label": "Ethereum (ETH-USD)", "value": "ETH-USD"},
+]
+SOURCE_LABELS = {
+    "live": "Live-Daten (Yahoo Finance)",
+    "cache": "Lokaler Cache",
+    "stale_cache": "Älterer Cache (Fallback)",
+}
 
 # =============================================================================
 # Helper
@@ -292,11 +305,25 @@ def single_asset_layout():
                 children=[
                     html.Div(children=[
                         html.Label("Ticker:", style={"fontWeight": 600}),
-                        dcc.Input(
-                            id="single-ticker",
-                            type="text",
-                            value="AAPL",
-                            style={"width": "200px", "marginLeft": "10px"},
+                        html.Div(
+                            style={"display": "flex", "gap": "8px", "alignItems": "center", "marginLeft": "0px"},
+                            children=[
+                                dcc.Dropdown(
+                                    id="single-ticker-dd",
+                                    options=POPULAR_TICKERS,
+                                    value="AAPL",
+                                    placeholder="Populär auswählen",
+                                    searchable=True,
+                                    clearable=True,
+                                    style={"width": "200px"},
+                                ),
+                                dcc.Input(
+                                    id="single-ticker-custom",
+                                    type="text",
+                                    placeholder="oder eigener Ticker (z.B. SAP.DE)",
+                                    style={"width": "220px"},
+                                ),
+                            ],
                         ),
                     ]),
                     html.Div(children=[
@@ -307,7 +334,7 @@ def single_asset_layout():
                             value="1y",
                             clearable=False,
                             style={"width": "200px"},
-                            className="period-dd",  # ✅ neu
+                            className="period-dd", 
                         ),
                     ]),
                     html.Div(children=[
@@ -320,8 +347,10 @@ def single_asset_layout():
                     ]),
                     html.Button("Daten laden", id="single-load", n_clicks=0),
                     html.Div(id="single-error", style={"color": "#b00", "fontWeight": 600}),
-                ],
-            ),
+                    html.Div(
+                        id="single-source",
+                        style={"color": "#444", "marginTop": "6px", "fontStyle": "italic"},
+                    ),],),
 
             html.Div(
                 style={"marginBottom": "12px"},
@@ -534,19 +563,21 @@ def render_tab(tab_value: str):
     Output("single-min", "children"),
     Output("single-mean", "children"),
     Output("single-error", "children"),
+    Output("single-source", "children"),
     Input("single-load", "n_clicks"),
-    State("single-ticker", "value"),
+    State("single-ticker-dd", "value"),
+    State("single-ticker-custom", "value"),
     State("single-period", "value"),
     State("single-window", "value"),
     State("single-forecast-steps", "value"),
     State("single-indicators", "value"),
 )
-def update_single_asset(n_clicks, ticker, period, window, forecast_steps, overlays):
+def update_single_asset(n_clicks, ticker_dd, ticker_custom, period, window, forecast_steps, overlays):
     if not n_clicks:
-        return _empty_figure("Bitte Ticker laden"), "-", "-", "-", "-", ""
-
+        return _empty_figure("Bitte Ticker laden"), "-", "-", "-", "-", "",""
+    ticker = (ticker_custom or "").strip() or (ticker_dd or "")
     if not ticker:
-        return _empty_figure(), "-", "-", "-", "-", "Bitte einen Ticker eingeben."
+        return _empty_figure(), "-", "-", "-", "-", "Bitte einen Ticker eingeben.",""
 
     overlays = overlays or []
 
@@ -568,7 +599,7 @@ def update_single_asset(n_clicks, ticker, period, window, forecast_steps, overla
     error_msg = ""
 
     try:
-        df = load_data(ticker_clean, period=period, interval="1d")
+        df, source = load_data(ticker_clean, period=period, interval="1d")
         if df is None or df.empty:
             raise ValueError("Keine Daten verfügbar.")
 
@@ -609,6 +640,7 @@ def update_single_asset(n_clicks, ticker, period, window, forecast_steps, overla
 
         fig = _build_single_asset_figure(df, ticker_clean, overlays, forecast_df=forecast_df)
 
+        source_label = SOURCE_LABELS.get(source, source)
         return (
             fig,
             _format_price(stats.get("latest_price")),
@@ -616,10 +648,11 @@ def update_single_asset(n_clicks, ticker, period, window, forecast_steps, overla
             _format_price(stats.get("min_last_year")),
             _format_price(stats.get("mean_last_year")),
             error_msg,
+            f"Datenquelle: {source_label}",
         )
 
     except Exception as exc:
-        return _empty_figure(), "-", "-", "-", "-", f"Fehler: {exc}"
+        return _empty_figure(), "-", "-", "-", "-", f"Fehler: {exc}", ""
 
 
 # =============================================================================
@@ -649,10 +682,11 @@ def update_compare(n_clicks, raw, period, days):
 
         assets: list[Asset] = []
         missing: list[str] = []
+        sources: dict[str, str] = {}
 
         for t in tickers:
             try:
-                df = load_data(t, period=period, interval="1d")
+                df, source = load_data(t, period=period, interval="1d")
                 if df is None or df.empty:
                     missing.append(t)
                     continue
@@ -670,6 +704,7 @@ def update_compare(n_clicks, raw, period, days):
                 df.index = pd.DatetimeIndex(idx[mask]).tz_convert(None)  # UTC -> naive
                 df = df.sort_index()
                 assets.append(Asset(t, df))
+                sources[t] = SOURCE_LABELS.get(source, source)
 
             except Exception as e:
                 missing.append(f"{t} ({e})")
@@ -717,9 +752,16 @@ def update_compare(n_clicks, raw, period, days):
             margin=dict(l=40, r=20, t=60, b=40),
         )
 
-        status = ""
+        status_parts = []
+
+        if sources:
+            src_text = ", ".join([f"{t}: {s}" for t, s in sources.items()])
+            status_parts.append("Datenquellen: " + src_text)
+
         if missing:
-            status = "Nicht geladen/fehlerhaft: " + ", ".join(missing)
+            status_parts.append("Nicht geladen/fehlerhaft: " + ", ".join(missing))
+            
+        status = " | ".join(status_parts)   
 
         return fig, data, columns, status
 
@@ -791,6 +833,7 @@ def update_portfolio(n_clicks, raw_tickers, base_currency):
 
     status_lines.append(f"Verwendete Assets (in {base_currency}): {', '.join(list(prices_base.columns))}")
     status_lines.extend(warnings)
+    status_lines.append("Datenquelle: yfinance (Portfolio-Download)")
 
     return fig, records, columns, " | ".join(status_lines)
 

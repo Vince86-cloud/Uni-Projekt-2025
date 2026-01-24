@@ -1,271 +1,258 @@
 # Interaktives Finanz-Dashboard
 
 ## Projektübersicht
-Dieses Projekt ist ein interaktives Finanz-Dashboard zur Analyse von Aktien und Kryptowährungen.
-Es lädt historische Marktdaten, berechnet Kennzahlen und technische Indikatoren, visualisiert
-Ergebnisse interaktiv und ermöglicht den Vergleich mehrerer Assets sowie die Analyse eines Portfolios.
+Dieses Projekt ist ein interaktives Finanz-Dashboard zur Analyse von Aktien und Kryptowährungen.  
+Es lädt historische Marktdaten, stellt den **zuletzt verfügbaren Kurs** eines Assets bereit, berechnet Kennzahlen und technische Indikatoren, visualisiert Ergebnisse interaktiv und ermöglicht den Vergleich mehrerer Assets sowie die Analyse eines Portfolios.
 
 Die Anwendung kann sowohl:
 - **als Konsolenprogramm (CLI)**  
 - **als interaktive Webanwendung (Dash / Plotly)**  
 genutzt werden.
 
----
+**Hinweis:** Der „aktuelle Kurs“ entspricht dem zuletzt von der Datenquelle bereitgestellten Marktpreis  
+(keine tickbasierte Echtzeitversorgung).
 
-## Projektstruktur
+## Projekt starten 
+
+1. Abhängigkeiten installieren  
+     
+  Zunächst sind die benötigten Pakete zu installieren:
+  
+   pip install -r requirements.txt
+  
+  Für die optionale ARIMA-Zeitreihenprognose wird das Paket `statsmodels` benötigt.
+  Dieses kann bei Bedarf zusätzlich installiert werden:
+
+    pip install -r requirements-forecast.txt
+
+2. Projekt starten
+
+  Das Projekt aus dem Projekt-Root starten:
+
+    python main.py
+
+3. Anwendungsmodus wählen
+
+  Nach dem Start kann zwischen zwei Modi gewählt werden:
+
+    1 → CLI (konsolenbasierte Analyse)
+
+    2 → Dashboard (Webanwendung)
+
+4. Dashboard aufrufen
+
+  Bei Auswahl des Dashboard-Modus ist die Anwendung unter folgender Adresse erreichbar:
+
+    http://127.0.0.1:8050
+
+**Projektstruktur**
 
 Uni-Projekt-2025/
 │
-├── main.py # Einstiegspunkt (CLI oder Dashboard)
-├── requirements.txt # Python-Abhängigkeiten
-├── README.md # Projektbeschreibung
+├── main.py              # Einstiegspunkt (CLI oder Dashboard)
+├── requirements.txt     # Verwendete Module/Bibliotheken
+├── README.md            # Projektbeschreibung
 │
 └── src/
-├── data_fetch.py # Datenbeschaffung & Caching
-├── analysis.py # Kennzahlen & technische Indikatoren
-├── visualize.py # Erste Visualisierungen (Matplotlib)
-├── forecast.py # Zeitreihenprognose (ARIMA, optional)
-├── comparison.py # Vergleich mehrerer Assets
-├── portfolio.py # Portfolio-Analyse (Equal Weight, FX)
-└── app.py # Dash-Webanwendungteraktives Finanz-Dashboard
+    ├── data_fetch.py    # Datenbeschaffung & Caching
+    ├── analysis.py      # Kennzahlen & technische Indikatoren
+    ├── visualize.py     # Konsolenvisualisierung (Matplotlib)
+    ├── forecast.py      # Zeitreihenprognose
+    ├── comparison.py    # Vergleich mehrerer Assets
+    ├── portfolio.py     # Portfolio-Analyse (Equal Weight, FX)
+    └── Dashboard.py     # Dash-Webanwendung
 
-## Datenbeschaffung (`data_fetch.py`)
-Dieses Modul ist für das Laden historischer Kursdaten zuständig.
+**Datenbeschaffung (data_fetch.py)**
 
-**Funktionen und Eigenschaften:**
-- Datenabruf über **Yahoo Finance** (`yfinance`)
-- Unterstützung für Aktien und Kryptowährungen (z.B. `AAPL`, `MSFT`, `BTC-USD`)
-- Lokales **Caching** der Daten als CSV-Dateien
-- Retry-Mechanismus mit Backoff bei Netzwerkproblemen
-- Fallback auf Cache-Daten bei temporären API-Ausfällen
+Dieses Modul ist für das Laden historischer Kursdaten zuständig und stellt eine robuste
+Schnittstelle zur externen Datenquelle bereit.
 
-**Zentrale Funktion:**
-```python
+**Funktionen und Eigenschaften**
+
+- Datenabruf über Yahoo Finance (yfinance)
+
+- Unterstützung für Aktien und Kryptowährungen (z.B. AAPL, MSFT, BTC-USD)
+
+- Lokales Caching der Daten als CSV-Dateien
+
+- Retry-Mechanismus mit exponentiellem Backoff bei Netzwerkproblemen
+
+- Fallback auf ältere Cache-Daten bei temporären API-Ausfällen
+
+Zur Erhöhung der Stabilität wird eine **wiederverwendbare HTTP-Session** eingesetzt,
+in der u.a. ein realistischer User-Agent sowie optionale SSL-Zertifikatskonfigurationen
+berücksichtigt werden.
+
+**Zentrale Funktion**
+
 load_data(ticker, period="1y", interval="1d")
 
-**Vorteile:**
+**Vorteile**
+
 - Reduzierte API-Abfragen
-- höhere Stabilität bei temporären Netzwerk- oder API-Problemen
-- einheitliches DataFrame-Format für alle weiteren Module
 
-## Analyse & technische Indikatoren (`analysis.py`)
+- Höhere Stabilität bei temporären Netzwerk- oder API-Problemen
 
-Dieses Modul ist für die Berechnung finanzieller Kennzahlen und technischer Indikatoren
-auf Basis historischer Kursdaten zuständig. Als Grundlage dient stets der
-Schlusskurs (`Close`) eines Assets.
+- Einheitliches pandas.DataFrame-Format für alle weiteren Module
 
-### Grundlegende Kennzahlen
-Zur Beschreibung der Kursentwicklung werden folgende Basiskennzahlen berechnet:
+- Funktioniert auch bei kurzfristigen Ausfällen der Datenquelle
+
+**Analyse & technische Indikatoren (analysis.py)**
+
+Dieses Modul berechnet finanzielle Kennzahlen und technische Indikatoren
+auf Basis historischer Kursdaten.
+Als Grundlage dient stets der Schlusskurs (Close) eines Assets.
+
+**Grundlegende Kennzahlen**
 
 - letzter verfügbarer Schlusskurs
-- Höchstkurs im betrachteten Zeitraum
-- Tiefstkurs im betrachteten Zeitraum
-- Durchschnittskurs im Zeitraum
-- Rendite über den Zeitraum (in Prozent)
+
+- Höchst- und Tiefstkurs im betrachteten Zeitraum
+
+- Durchschnittskurs
+
+- Rendite (in Prozent)
+
 - tägliche Volatilität (Standardabweichung der Tagesrenditen)
 
-```python
 compute_basic_stats(df)
 
-### Technische Indikatoren
+**Technische Indikatoren**
 
-Zusätzlich zu den grundlegenden Kennzahlen unterstützt das Analyse-Modul gängige
-technische Indikatoren aus der Finanzanalyse. Diese Indikatoren dienen der
-Identifikation von Trends, Momentum und potenziellen Über- bzw. Unterbewertungen.
+- Simple Moving Average (SMA)
 
-- **Simple Moving Average (SMA)**  
-  Einfacher gleitender Durchschnitt, der den Kursverlauf über ein festes Zeitfenster
-  glättet und kurzfristige Schwankungen reduziert.
+- Exponential Moving Average (EMA)
 
-- **Exponential Moving Average (EMA)**  
-  Gewichteter gleitender Durchschnitt, bei dem neuere Kurse stärker berücksichtigt
-  werden als ältere. Dadurch reagiert der EMA schneller auf Marktveränderungen
-  als der SMA.
+- Relative Strength Index (RSI)
 
-- **Relative Strength Index (RSI)**  
-  Momentum-Indikator mit einem Wertebereich von 0 bis 100.  
-  Typischerweise gelten Werte über 70 als überkauft und Werte unter 30 als überverkauft.
+- MACD (Moving Average Convergence Divergence)
 
-- **MACD (Moving Average Convergence Divergence)**  
-  Kombination aus Trend- und Momentum-Indikator.  
-  Besteht aus der MACD-Linie (Differenz zweier EMAs), einer Signallinie
-  sowie einem Histogramm, das den Abstand zwischen beiden Linien darstellt.
-
-Die Berechnung der Indikatoren erfolgt über folgende Funktionen:
-
-```python
 add_moving_average(df, window)
 add_ema(df, span)
 add_rsi(df, period=14)
 add_macd(df)
 
-## 📉 Visualisierung (`visualize.py`)
+## Zeitreihenprognose (`forecast.py`)
 
-Dieses Modul stellt einfache Visualisierungsfunktionen auf Basis von **Matplotlib** bereit.
-Es dient **nicht** als Ersatz für das interaktive Dashboard, sondern erfüllt einen
-klar abgegrenzten, ergänzenden Zweck innerhalb des Projekts.
-
-### Zweck und Motivation
-
-Die Visualisierung in diesem Modul wird primär für:
-- die **Konsolenanwendung (CLI)**
-- schnelle visuelle Kontrolle während der Entwicklung
-- Debugging und Exploration der geladenen Daten
-
-verwendet.
-
-Im Gegensatz zur Dash-Webanwendung:
-- benötigt dieses Modul **keinen Webserver**
-- funktioniert vollständig **offline**
-- erlaubt eine schnelle Darstellung direkt aus der Konsole heraus
-
+Dieses Modul stellt eine **optionale Zeitreihenprognose** für einzelne Assets bereit.
+Es dient der exemplarischen Erweiterung des Projekts um einfache
+prognostische Verfahren aus der Zeitreihenanalyse.
 
 ### Funktionalität
+- Prognose zukünftiger Kursentwicklungen auf Basis historischer Schlusskurse
+- Verwendung eines **ARIMA-Modells** (AutoRegressive Integrated Moving Average)
+- Darstellung von Prognosewerten inklusive **Konfidenzintervallen**
 
-Das Modul fokussiert sich bewusst auf **preisbasierte Darstellungen** und einfache
-gleitende Durchschnitte:
+### Technische Umsetzung
+- Umsetzung mit dem Python-Paket **statsmodels**
+- Die Prognose wird ausschließlich im **Single-Asset-Analyse-Tab** des Dashboards angeboten
+- Die Berechnung erfolgt **on demand**, d.h. nur bei expliziter Aktivierung durch den Nutzer
 
-- Darstellung des reinen Kursverlaufs (`Close`)
-- Kursverläufe mit gleitenden Durchschnitten (Moving Averages)
+### Optionaler Charakter
+Das Modul ist bewusst als **optionales Feature** implementiert:
 
-Die Konsolenvisualisierung dient dabei ausschließlich der explorativen Analyse
+- Ist `statsmodels` **nicht installiert**:
+  - Das Projekt startet und läuft vollständig
+  - Alle Analyse- und Visualisierungsfunktionen sind nutzbar
+  - Die Prognosefunktion ist deaktiviert und wird im UI entsprechend gekennzeichnet
+
+- Ist `statsmodels` **installiert**:
+  - Die ARIMA-Prognose kann zusätzlich aktiviert werden
+  - Prognose und Unsicherheitsbereich werden visualisiert
+
+
+**Visualisierung (visualize.py)**
+
+Dieses Modul stellt einfache Visualisierungen auf Basis von Matplotlib bereit.
+Es dient primär der Konsolenanwendung (CLI) und der explorativen Analyse.
+
+- Kein Webserver erforderlich
+
+- Offline nutzbar
+
+- Schnelle visuelle Kontrolle der Kursdaten
+
+Die Konsolenvisualisierung dient ausschließlich der explorativen Analyse
 und ist nicht für eine vollständige technische Analyse vorgesehen. 
 Die vollständige und interaktive Visualisierung der Analyseergebnisse erfolgt
 im Web-Dashboard auf Basis von **Dash** und **Plotly**.
 
-### Dashboard-Anwendung (`app.py`)
+**Dashboard-Anwendung (Dashboard.py)**
 
-Die Datei `app.py` implementiert die interaktive Weboberfläche des Projekts.  
-Sie basiert auf **Dash** (Web-Framework) und **Plotly** (interaktive Visualisierung) und
-verbindet die einzelnen Module (`data_fetch.py`, `analysis.py`, `comparison.py`, `portfolio.py`,
-optional `forecast.py`) zu einer einheitlichen Anwendung.
+Die Datei Dashboard.py implementiert die interaktive Weboberfläche des Projekts
+auf Basis von Dash und Plotly.
+Sie verbindet die Module data_fetch.py, analysis.py, comparison.py,
+portfolio.py sowie forecast.py.
 
-### Ziel des Dashboards
-Das Dashboard dient als zentrale Oberfläche, um:
-- einzelne Assets schnell zu analysieren (Kurs, Kennzahlen, Indikatoren)
-- mehrere Assets vergleichbar darzustellen (normalisierte Verläufe, Vergleichstabelle)
-- ein virtuelles Portfolio zu bewerten (Equal Weight, FX-Umrechnung, Kennzahlen-Tabelle)
+**Ziel des Dashboards**
 
-Die Darstellung ist bewusst interaktiv umgesetzt (Zoom, Hover, gemeinsame X-Achse),
-um Explorations- und Analyseprozesse zu unterstützen.
+- Analyse einzelner Assets
 
+- Vergleich mehrerer Assets
 
-### Aufbau: Tabs (drei Anwendungsbereiche)
+- Bewertung eines virtuellen Portfolios
 
-Das Dashboard ist in drei Tabs unterteilt, um Funktionalitäten klar zu trennen:
+Die Darstellung ist bewusst interaktiv (Zoom, Hover, gemeinsame Zeitachse),
+um explorative Analyseprozesse zu unterstützen.
 
-#### 1) Single Asset Analysis
-- Eingabe eines einzelnen Tickers (z.B. `AAPL`, `BTC-USD`)
-- Auswahl eines Zeitraums (yfinance `period`)
-- optionale Overlays/Indikatoren:
-  - Moving Average (MA)
-  - Exponential Moving Average (EMA)
-  - RSI(14)
-  - MACD
-  - optional: ARIMA Forecast
-- Ausgabe:
-  - interaktiver Kurschart (Plotly) inkl. Indikator-Panels (RSI/MACD)
-  - Kennzahlen-Karten (z.B. letzter Schlusskurs, High/Low/Mean)
+**Aufbau: Tabs**
 
-Technisch:
-- beim Klick auf **„Daten laden“** wird ein Dash-Callback ausgelöst
-- Daten werden mit `load_data(...)` geladen und bei Bedarf mit Indikatoren ergänzt
-- die Visualisierung wird über Plotly Subplots aufgebaut (Preis + optionale Panels)
+1) Single Asset Analyse
 
+- Analyse eines einzelnen Tickers
 
-#### 2) Compare Assets
-- Eingabe mehrerer Ticker (komma-separiert)
-- Laden historischer Daten pro Asset
-- Vergleich über einen einheitlichen Zeitraum (z.B. letzte 365 Tage)
-- Ausgabe:
-  - normalisierte Kursverläufe (Start = 100) für direkte Vergleichbarkeit
-  - Kennzahlen-Tabelle (Rendite, Volatilität, Drawdown etc.)
-  - Statushinweise, falls einzelne Ticker nicht geladen werden konnten
+- Anzeige von Kurs, Kennzahlen und Indikatoren
 
-Technisch:
-- nutzt die Klassen `Asset` und `Comparator` aus `comparison.py`
-- Kennzahlen werden pro Asset berechnet und anschließend tabellarisch zusammengeführt
+- Optionaler ARIMA-Forecast
 
+2) Asset-Vergleich
 
-#### 3) Portfolio Analyse
-- Eingabe mehrerer Ticker (komma-separiert)
-- Wahl einer Basiswährung (`EUR` oder `USD`)
-- automatische FX-Umrechnung aller Assets in die Basiswährung
-- Equal-Weight Portfolio-Index mit täglichem Rebalancing
-- Ausgabe:
-  - normierte Zeitreihen (Assets + Portfolio) in einer Plotly-Figure
-  - Kennzahlen-Tabelle über mehrere Zeiträume (YTD, 1Y, 3Y, 5Y)
-  - Status-/Warnhinweise (z.B. fehlende FX-Daten, ausgeschlossene Ticker)
+- Vergleich mehrerer Assets
 
-Technisch:
-- nutzt Funktionen aus `portfolio.py`
-  - `download_prices(...)`
-  - `convert_prices_to_base_currency(...)`
-  - `build_equal_weight_portfolio_index(...)`
-  - `build_metrics_table(...)`
-  - `build_price_figure(...)`
+- Normalisierte Kursverläufe
 
+- Vergleichstabelle mit Kennzahlen
 
-### Optionales Feature: ARIMA Forecast (statsmodels)
-Die Zeitreihenprognose im *Single Asset Analysis*-Tab basiert auf einem ARIMA-Modell
-und nutzt das optionale Python-Paket statsmodels.
+3) Portfolio-Analyse
 
-Dieses Paket ist **nicht zwingend erforderlich**, um das Dashboard zu starten oder zu nutzen.
+- Equal-Weight-Portfolio
 
-**Ohne installiertes `statsmodels`:**
-- das Dashboard startet normal
-- alle Tabs (Single Asset, Compare Assets, Portfolio Analyse) sind vollständig nutzbar
-- lediglich die **ARIMA-Forecast-Funktion ist deaktiviert**
-- beim Aktivieren des Forecasts erscheint ein entsprechender Hinweis im UI
+- FX-Umrechnung in eine Basiswährung
 
-**Mit installiertem `statsmodels`:**
-- die ARIMA-Prognose kann zusätzlich im Single-Asset-Tab genutzt werden
-- es werden Prognosewerte inklusive Konfidenzintervall dargestellt
+- Kennzahlen über mehrere Zeiträume
+
+**Optionales Feature: ARIMA-Prognose**
+
+Die Zeitreihenprognose basiert auf einem ARIMA-Modell (statsmodels) und ist optional.
+
+**Ohne installiertes statsmodels:**
+
+- Dashboard vollständig nutzbar
+
+- Prognosefunktion deaktiviert
+
+**Mit installiertem statsmodels:**
+
+- zusätzliche Prognose inkl. Konfidenzintervall im Single-Asset-Tab
 
 ***Hinweis***
 Das Fehlen des Pakets statsmodels schränkt ausschließlich die Prognosefunktion ein und beeinträchtigt nicht den Betrieb des Dashboards.
 
-### Start der Webanwendung
-Das Dashboard wird über den Menüpunkt in `main.py` (Modus 2) oder direkt gestartet und läuft unter:
+**Einstiegspunkt des Projekts (main.py)**
 
-## Einstiegspunkt des Projekts (`main.py` im Projekt-Root)
-
-Das Projekt wird über die Datei `main.py` im **Projekt-Root** gestartet:
-
-```bash
+Das Projekt wird über die Datei main.py im Projekt-Root gestartet:
 python main.py
 
-Diese Datei dient als zentraler Einstiegspunkt für das gesamte Projekt. Sie leitet den Programmfluss anschließend intern an die entsprechenden Module im src/-Verzeichnis weiter.
 
-Die Entscheidung für einen separaten Einstiegspunkt im Projekt-Root wurde bewusst getroffen:
-
-Der Projekt-Root fungiert als klarer Startpunkt für den Anwender, während das src/-Verzeichnis ausschließlich Implementierungslogik enthält.
-
-
-Dadurch entsteht eine klare Trennung zwischen:
-
-Anwendungsstart (Orchestrierung)
-→ main.py im Root
-
-Fachlogik und Module
-→ Dateien im src/-Ordner
-
-Weiterleitung innerhalb des Projekts
-
-Das Root-main.py:
-
-- verarbeitet die Benutzerauswahl (CLI oder Dashboard)
-
-- ruft anschließend gezielt Funktionen aus src/ auf (z.B. src.app.main() für das Dashboard)
+Die Datei main.py fungiert als zentraler Einstiegspunkt und steuert,
+ob die Anwendung im CLI-Modus oder als Web-Dashboard gestartet wird.
 
 Diese Struktur ermöglicht:
 
-- einen einheitlichen Einstiegspunkt
+- einen klaren Einstiegspunkt für Nutzer
 
-- einfache Erweiterbarkeit (z.B. weitere Startmodi)
+- eine saubere Trennung von **Steuerungslogik (Programmfluss)** und **Fachlogik (Analyse, Berechnung, Visualisierung)**
 
-- klare Verantwortlichkeiten der einzelnen Module
-
-- Vorteil für Wartbarkeit
+- gute Wartbarkeit und einfache Erweiterbarkeit
 
 

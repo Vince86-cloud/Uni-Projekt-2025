@@ -1,7 +1,7 @@
 import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from curl_cffi import requests as cffi_requests  # Von yfinance benötigte HTTP-Session
 import pandas as pd
@@ -18,9 +18,11 @@ def _create_session_with_custom_ca():
     Eigenschaften:
     - Setzt einen realistischen User-Agent (vermeidet Blockierungen)
     - Berücksichtigt benutzerdefinierte CA-Zertifikate aus Umgebungsvariablen
-    - Optionales Deaktivieren der SSL-Prüfung für Entwicklungsumgebungen"""
+    - Optionales Deaktivieren der SSL-Prüfung für Entwicklungsumgebungen
+    """
     session = cffi_requests.Session()
-    #User-Agent zur besseren Akzeptanz durch den Datenanbieter
+
+    # User-Agent zur besseren Akzeptanz durch den Datenanbieter
     session.headers.update(
         {
             "User-Agent": (
@@ -30,11 +32,14 @@ def _create_session_with_custom_ca():
             )
         }
     )
-    ca_bundle = os.getenv("REQUESTS_CA_BUNDLE") or os.getenv("CURL_CA_BUNDLE") 
+
+    ca_bundle = os.getenv("REQUESTS_CA_BUNDLE") or os.getenv("CURL_CA_BUNDLE")
     if ca_bundle:
         session.verify = ca_bundle
+
     if os.getenv("ALLOW_INSECURE_SSL") == "1":
         session.verify = False  # nicht für Produktivbetrieb empfohlen
+
     return session
 
 
@@ -62,6 +67,7 @@ def _load_from_cache(
     path = _cache_path(ticker, period, interval)
     if not path.exists():
         return None
+
     # Alter der Cache-Datei in Stunden berechnen
     age_hours = (time.time() - path.stat().st_mtime) / 3600
     if age_hours > max_age_hours:
@@ -87,7 +93,7 @@ def _save_to_cache(ticker: str, period: str, interval: str, df: pd.DataFrame) ->
     try:
         df.to_csv(_cache_path(ticker, period, interval))
     except Exception:
-    # Cache-Fehler werden bewusst ignoriert
+        # Cache-Fehler werden bewusst ignoriert
         pass
 
 
@@ -97,7 +103,7 @@ def load_data(
     interval: str = "1d",
     retries: int = 3,
     backoff_seconds: int = 2,
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, str]:
     """
     Lädt historische Marktdaten für ein Wertpapier oder eine Kryptowährung.
 
@@ -105,6 +111,9 @@ def load_data(
     - Lokales Caching zur Reduktion von API-Abfragen
     - Wiederholungsversuche bei Netzwerkfehlern (Retry + Backoff)
     - Fallback auf ältere Cache-Daten bei API-Ausfällen
+
+    Rückgabe:
+    - (DataFrame, source) wobei source ∈ {"live", "cache", "stale_cache"}
 
     Parameter:
     - ticker: Symbol (z.B. AAPL, MSFT, BTC-USD)
@@ -114,12 +123,14 @@ def load_data(
     # Zuerst versuchen, aktuelle Daten aus dem Cache zu laden
     cached = _load_from_cache(ticker, period, interval)
     if cached is not None and not cached.empty:
-        return cached
+        return cached, "cache"
+
     # yfinance-Ticker mit benutzerdefinierter HTTP-Session initialisieren
     session = _create_session_with_custom_ca()
     stock = yf.Ticker(ticker, session=session)
 
     last_exc: Optional[Exception] = None
+
     # Mehrere Abrufversuche mit exponentiellem Backoff
     for attempt in range(retries):
         try:
@@ -127,7 +138,7 @@ def load_data(
             if df is not None and not df.empty:
                 df = df.sort_index()
                 _save_to_cache(ticker, period, interval, df)
-                return df
+                return df, "live"
         except Exception as exc:
             last_exc = exc
 
@@ -136,7 +147,8 @@ def load_data(
     # Fallback: Nutzung von Cache-Daten bis zu 7 Tage alt
     stale = _load_from_cache(ticker, period, interval, max_age_hours=24 * 7)
     if stale is not None and not stale.empty:
-        return stale
+        return stale, "stale_cache"
+
     # Falls alles fehlschlägt, wird der letzte Fehler weitergereicht
     if last_exc:
         raise last_exc
