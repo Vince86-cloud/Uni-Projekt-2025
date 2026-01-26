@@ -402,6 +402,30 @@ def compare_assets_layout():
         children=[
             html.H2("Compare Assets"),
 
+            dcc.RadioItems(
+            id="compare-date-mode",
+            options=[
+                {"label": "Preset (z.B. 6mo / 1y)", "value": "preset"},
+                {"label": "Start-/Enddatum", "value": "custom"},
+            ],
+            value="preset",
+            inline=True,
+            style={"marginBottom": "10px"}
+        ),
+
+        html.Div(
+            id="compare-date-range-wrap",
+            children=[
+                dcc.DatePickerRange(
+                    id="compare-date-range",
+                    display_format="YYYY-MM-DD",
+                    start_date_placeholder_text="Startdatum",
+                    end_date_placeholder_text="Enddatum",
+                )
+            ],
+            style={"display": "none", "marginBottom": "10px"},
+        ),
+            
             html.Div(
                 style={"marginBottom": "10px", "display": "flex", "gap": "14px", "alignItems": "flex-end", "flexWrap": "wrap"},
                 children=[
@@ -449,6 +473,23 @@ def compare_assets_layout():
                 id="cmp-table",
                 data=[],
                 columns=[],
+                style_table={"overflowX": "auto"},
+                style_cell={"padding": "8px", "textAlign": "left", "whiteSpace": "normal"},
+                style_header={"fontWeight": "bold"},
+            ),
+
+            html.H3("Best / Worst Days (pro Asset)", style={"marginTop": "18px"}),
+
+            dash_table.DataTable(
+                id="cmp-bestworst",
+                columns=[
+                    {"name": "Ticker", "id": "ticker"},
+                    {"name": "Best Day", "id": "best_day"},
+                    {"name": "Best Return (%)", "id": "best_return"},
+                    {"name": "Worst Day", "id": "worst_day"},
+                    {"name": "Worst Return (%)", "id": "worst_return"},
+                ],
+                data=[],
                 style_table={"overflowX": "auto"},
                 style_cell={"padding": "8px", "textAlign": "left", "whiteSpace": "normal"},
                 style_header={"fontWeight": "bold"},
@@ -654,6 +695,14 @@ def update_single_asset(n_clicks, ticker_dd, ticker_custom, period, window, fore
     except Exception as exc:
         return _empty_figure(), "-", "-", "-", "-", f"Fehler: {exc}", ""
 
+@app.callback(
+    Output("compare-date-range-wrap", "style"),
+    Input("compare-date-mode", "value"),
+)
+def toggle_compare_date_range(mode):
+    if mode == "custom":
+        return {"display": "block", "marginBottom": "10px"}
+    return {"display": "none", "marginBottom": "10px"}
 
 # =============================================================================
 # Callback: Compare Assets
@@ -663,14 +712,18 @@ def update_single_asset(n_clicks, ticker_dd, ticker_custom, period, window, fore
     Output("cmp-table", "data"),
     Output("cmp-table", "columns"),
     Output("cmp-status", "children"),
+    Output("cmp-bestworst", "data"),
     Input("cmp-run", "n_clicks"),
     State("cmp-tickers", "value"),
     State("cmp-period", "value"),
     State("cmp-days", "value"),
+    State("compare-date-mode", "value"),
+    State("compare-date-range", "start_date"),
+    State("compare-date-range", "end_date"),
 )
-def update_compare(n_clicks, raw, period, days):
+def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date):
     if not n_clicks:
-        return _empty_figure("Noch kein Vergleich"), [], [], ""
+        return _empty_figure("Noch kein Vergleich"), [], [], "", []
 
     try:
         tickers = [t.strip().upper() for t in (raw or "").split(",") if t.strip()]
@@ -679,6 +732,24 @@ def update_compare(n_clicks, raw, period, days):
 
         period = (period or "1y").strip()
         days = int(days) if days else 365
+
+        use_custom = (date_mode == "custom" and start_date and end_date)
+
+        if date_mode == "custom" and (not start_date or not end_date):
+            return _empty_figure(), [], [], "Bitte Start- und Enddatum wählen und dann vergleichen."
+
+        if use_custom:
+            start_dt = pd.to_datetime(start_date).tz_localize(None)
+            end_dt = pd.to_datetime(end_date).tz_localize(None)
+
+            if end_dt < start_dt:
+                return _empty_figure(), [], [], "Enddatum muss nach Startdatum liegen."
+
+            # damit genug Daten geladen werden
+            period = "max"
+
+            # days passend zum gewählten Fenster (für normalized_price_series / collect_metrics)
+            days = int((end_dt - start_dt).days) + 1
 
         assets: list[Asset] = []
         missing: list[str] = []
@@ -703,6 +774,16 @@ def update_compare(n_clicks, raw, period, days):
                 df = df.loc[mask].copy()
                 df.index = pd.DatetimeIndex(idx[mask]).tz_convert(None)  # UTC -> naive
                 df = df.sort_index()
+
+                if use_custom:
+                    df = df.loc[(df.index >= start_dt) & (df.index <= end_dt)]
+
+                # prüfen
+                if df is None or df.empty:
+                    missing.append(t)
+                    continue
+                    
+                # speichern/anhängen    
                 assets.append(Asset(t, df))
                 sources[t] = SOURCE_LABELS.get(source, source)
 
@@ -710,9 +791,30 @@ def update_compare(n_clicks, raw, period, days):
                 missing.append(f"{t} ({e})")
 
         if len(assets) < 2:
-            return _empty_figure(), [], [], f"Zu wenige gültige Assets. Fehlend: {', '.join(missing)}"
+            return _empty_figure(), [], [], f"Zu wenige gültige Assets. Fehlend: {', '.join(missing), []}"
 
         comp = Comparator(assets)
+
+        bestworst_rows = []
+        for asset in assets:
+            best = asset.best_day(
+                start_date=start_dt if use_custom else None,
+                end_date=end_dt if use_custom else None,
+                days=None if use_custom else days,
+            )
+            worst = asset.worst_day(
+                start_date=start_dt if use_custom else None,
+                end_date=end_dt if use_custom else None,
+                days=None if use_custom else days,
+            )
+
+            bestworst_rows.append({
+                "ticker": asset.ticker,
+                "best_day": best["date"].date().isoformat() if best["date"] is not None else "-",
+                "best_return": round(best["return"] * 100, 2) if best["return"] is not None else "-",
+                "worst_day": worst["date"].date().isoformat() if worst["date"] is not None else "-",
+                "worst_return": round(worst["return"] * 100, 2) if worst["return"] is not None else "-",
+            })
 
         # --- Kennzahlen ---
         metrics = comp.collect_metrics(days=days)
@@ -720,6 +822,20 @@ def update_compare(n_clicks, raw, period, days):
 
         table_df = table_df.reset_index().rename(columns={"index": "Metric"})
         table_df.columns = [str(c) for c in table_df.columns]
+
+        METRIC_LABELS = {
+            "price_development": "Price Development",
+            "return_percentage": "Return Percentage (%)",
+            "normalized_performance": "Normalized Performance (Start=100)",
+            "volatility": "Volatility",
+            "drawdown": "Drawdown",
+        }
+
+        table_df["Metric"] = (
+            table_df["Metric"]
+            .astype(str)
+            .map(lambda x: METRIC_LABELS.get(x, x.replace("_", " ").title()))
+        )
 
         # JSON-safe machen
         def _to_jsonable(x):
@@ -763,7 +879,7 @@ def update_compare(n_clicks, raw, period, days):
             
         status = " | ".join(status_parts)   
 
-        return fig, data, columns, status
+        return fig, data, columns, status, bestworst_rows
 
     # vollständigen Traceback im UI anzeigen
     except Exception:
