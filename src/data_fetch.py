@@ -22,7 +22,6 @@ def _create_session_with_custom_ca():
     """
     session = cffi_requests.Session()
 
-    # User-Agent zur besseren Akzeptanz durch den Datenanbieter
     session.headers.update(
         {
             "User-Agent": (
@@ -75,11 +74,44 @@ def _load_from_cache(
 
     try:
         df = pd.read_csv(path, index_col=0, parse_dates=True)
-        if df is not None and not df.empty:
-            df = df.sort_index()
+
+        if df is None or df.empty:
+            return None
+
+        # Index bereinigen (wichtig für Forecast und Zeitreihenoperationen)
+        df.index = pd.to_datetime(df.index, errors="coerce")
+        df = df.loc[~df.index.isna()].copy()
+        df = df.sort_index()
+
+        # Eventuelle Duplikate im Index entfernen
+        df = df[~df.index.duplicated(keep="last")]
+        if df.empty:
+            return None
+
+        # Hinweis: Für "frischen" Cache (<= max_age_hours) reicht die Validierung
+        # über das Dateialter (mtime) plus grundlegende Datenbereinigung.
+        # Zusätzliche Plausibilitätsprüfungen werden nur bei älteren Cache-Dateien angewandt,
+        # um unnötige Live-Abfragen zu vermeiden und dennoch Datenqualität sicherzustellen.
+        if max_age_hours <= 24:
+            return df
+
+        # Zusätzliche Plausibilitätsprüfung für ältere Cache-Dateien (stale_cache):
+        # verhindert die Verwendung stark veralteter oder unvollständiger Daten als Fallback.
+        if interval == "1d":
+            last = df.index.max()
+            if pd.isna(last):
+                return None
+            if (pd.Timestamp.now() - last) > pd.Timedelta(days=10):
+                return None
+            if period in {"6mo", "1y"} and len(df) < 60:
+                return None
+            if period in {"2y", "5y", "max"} and len(df) < 120:
+                return None
+
         return df
+
     except Exception:
-        # Beschädigte oder ungültige Cache-Dateien werden ignoriert
+        # Beschädigte oder unbrauchbare Cache-Dateien werden ignoriert
         return None
 
 
@@ -114,11 +146,6 @@ def load_data(
 
     Rückgabe:
     - (DataFrame, source) wobei source ∈ {"live", "cache", "stale_cache"}
-
-    Parameter:
-    - ticker: Symbol (z.B. AAPL, MSFT, BTC-USD)
-    - period: Zeitraum (z.B. "1mo", "1y", "5y", "max")
-    - interval: Zeitauflösung (z.B. "1d", "1h", "15m")
     """
     # Zuerst versuchen, aktuelle Daten aus dem Cache zu laden
     cached = _load_from_cache(ticker, period, interval)
@@ -137,8 +164,15 @@ def load_data(
             df = stock.history(period=period, interval=interval)
             if df is not None and not df.empty:
                 df = df.sort_index()
+
+                # Index vereinheitlichen (Live & Cache identisch)
+                df.index = pd.to_datetime(df.index, utc=True, errors="coerce").tz_convert(None)
+                df = df.loc[~df.index.isna()].copy()
+                df = df[~df.index.duplicated(keep="last")]
+
                 _save_to_cache(ticker, period, interval, df)
                 return df, "live"
+
         except Exception as exc:
             last_exc = exc
 

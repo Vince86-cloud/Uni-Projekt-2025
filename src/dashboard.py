@@ -46,6 +46,7 @@ except Exception:
 
 app = Dash(__name__, title="Finanz-Dashboard", suppress_callback_exceptions=True)
 server = app.server
+
 POPULAR_TICKERS = [
     {"label": "Apple (AAPL)", "value": "AAPL"},
     {"label": "Microsoft (MSFT)", "value": "MSFT"},
@@ -55,11 +56,13 @@ POPULAR_TICKERS = [
     {"label": "Bitcoin (BTC-USD)", "value": "BTC-USD"},
     {"label": "Ethereum (ETH-USD)", "value": "ETH-USD"},
 ]
+
 SOURCE_LABELS = {
     "live": "Live-Daten (Yahoo Finance)",
     "cache": "Lokaler Cache",
     "stale_cache": "Älterer Cache (Fallback)",
 }
+
 
 # =============================================================================
 # Helper
@@ -320,7 +323,7 @@ def single_asset_layout():
                                 dcc.Input(
                                     id="single-ticker-custom",
                                     type="text",
-                                    placeholder="oder eigener Ticker (z.B. SAP.DE)",
+                                    placeholder="oder eigener Ticker (z.B. SAP)",
                                     style={"width": "220px"},
                                 ),
                             ],
@@ -334,7 +337,7 @@ def single_asset_layout():
                             value="1y",
                             clearable=False,
                             style={"width": "200px"},
-                            className="period-dd", 
+                            className="period-dd",
                         ),
                     ]),
                     html.Div(children=[
@@ -350,7 +353,9 @@ def single_asset_layout():
                     html.Div(
                         id="single-source",
                         style={"color": "#444", "marginTop": "6px", "fontStyle": "italic"},
-                    ),],),
+                    ),
+                ],
+            ),
 
             html.Div(
                 style={"marginBottom": "12px"},
@@ -403,29 +408,29 @@ def compare_assets_layout():
             html.H2("Compare Assets"),
 
             dcc.RadioItems(
-            id="compare-date-mode",
-            options=[
-                {"label": "Preset (z.B. 6mo / 1y)", "value": "preset"},
-                {"label": "Start-/Enddatum", "value": "custom"},
-            ],
-            value="preset",
-            inline=True,
-            style={"marginBottom": "10px"}
-        ),
+                id="compare-date-mode",
+                options=[
+                    {"label": "Preset (z.B. 6mo / 1y)", "value": "preset"},
+                    {"label": "Start-/Enddatum", "value": "custom"},
+                ],
+                value="preset",
+                inline=True,
+                style={"marginBottom": "10px"}
+            ),
 
-        html.Div(
-            id="compare-date-range-wrap",
-            children=[
-                dcc.DatePickerRange(
-                    id="compare-date-range",
-                    display_format="YYYY-MM-DD",
-                    start_date_placeholder_text="Startdatum",
-                    end_date_placeholder_text="Enddatum",
-                )
-            ],
-            style={"display": "none", "marginBottom": "10px"},
-        ),
-            
+            html.Div(
+                id="compare-date-range-wrap",
+                children=[
+                    dcc.DatePickerRange(
+                        id="compare-date-range",
+                        display_format="YYYY-MM-DD",
+                        start_date_placeholder_text="Startdatum",
+                        end_date_placeholder_text="Enddatum",
+                    )
+                ],
+                style={"display": "none", "marginBottom": "10px"},
+            ),
+
             html.Div(
                 style={"marginBottom": "10px", "display": "flex", "gap": "14px", "alignItems": "flex-end", "flexWrap": "wrap"},
                 children=[
@@ -446,7 +451,7 @@ def compare_assets_layout():
                             value="1y",
                             clearable=False,
                             style={"width": "160px"},
-                            className="period-dd",  # ✅ optional (macht’s konsistent)
+                            className="period-dd",
                         ),
                     ]),
                     html.Div(children=[
@@ -457,7 +462,7 @@ def compare_assets_layout():
                             value=365,
                             clearable=False,
                             style={"width": "160px"},
-                            className="period-dd",  # ✅ optional
+                            className="period-dd",
                         ),
                     ]),
                     html.Button("Vergleichen", id="cmp-run", n_clicks=0),
@@ -523,7 +528,7 @@ def portfolio_layout():
                             value="EUR",
                             clearable=False,
                             style={"width": "140px"},
-                            className="period-dd",  # ✅ optional
+                            className="period-dd",
                         ),
                     ]),
                     html.Button("Aktualisieren", id="pf-run", n_clicks=0),
@@ -615,10 +620,10 @@ def render_tab(tab_value: str):
 )
 def update_single_asset(n_clicks, ticker_dd, ticker_custom, period, window, forecast_steps, overlays):
     if not n_clicks:
-        return _empty_figure("Bitte Ticker laden"), "-", "-", "-", "-", "",""
+        return _empty_figure("Bitte Ticker laden"), "-", "-", "-", "-", "", ""
     ticker = (ticker_custom or "").strip() or (ticker_dd or "")
     if not ticker:
-        return _empty_figure(), "-", "-", "-", "-", "Bitte einen Ticker eingeben.",""
+        return _empty_figure(), "-", "-", "-", "-", "Bitte einen Ticker eingeben.", ""
 
     overlays = overlays or []
 
@@ -695,6 +700,7 @@ def update_single_asset(n_clicks, ticker_dd, ticker_custom, period, window, fore
     except Exception as exc:
         return _empty_figure(), "-", "-", "-", "-", f"Fehler: {exc}", ""
 
+
 @app.callback(
     Output("compare-date-range-wrap", "style"),
     Input("compare-date-mode", "value"),
@@ -703,6 +709,7 @@ def toggle_compare_date_range(mode):
     if mode == "custom":
         return {"display": "block", "marginBottom": "10px"}
     return {"display": "none", "marginBottom": "10px"}
+
 
 # =============================================================================
 # Callback: Compare Assets
@@ -728,7 +735,7 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
     try:
         tickers = [t.strip().upper() for t in (raw or "").split(",") if t.strip()]
         if len(tickers) < 2:
-            return _empty_figure(), [], [], "Bitte mindestens 2 Ticker angeben (z.B. AAPL,MSFT)."
+            return _empty_figure(), [], [], "Bitte mindestens 2 Ticker angeben (z.B. AAPL,MSFT).", []
 
         period = (period or "1y").strip()
         days = int(days) if days else 365
@@ -736,20 +743,20 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
         use_custom = (date_mode == "custom" and start_date and end_date)
 
         if date_mode == "custom" and (not start_date or not end_date):
-            return _empty_figure(), [], [], "Bitte Start- und Enddatum wählen und dann vergleichen."
+            return _empty_figure(), [], [], "Bitte Start- und Enddatum wählen und dann vergleichen.", []
 
         if use_custom:
             start_dt = pd.to_datetime(start_date).tz_localize(None)
             end_dt = pd.to_datetime(end_date).tz_localize(None)
 
             if end_dt < start_dt:
-                return _empty_figure(), [], [], "Enddatum muss nach Startdatum liegen."
+                return _empty_figure(), [], [], "Enddatum muss nach Startdatum liegen.", []
 
-            # damit genug Daten geladen werden
             period = "max"
-
-            # days passend zum gewählten Fenster (für normalized_price_series / collect_metrics)
             days = int((end_dt - start_dt).days) + 1
+        else:
+            start_dt = None
+            end_dt = None
 
         assets: list[Asset] = []
         missing: list[str] = []
@@ -762,28 +769,22 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
                     missing.append(t)
                     continue
 
-                # Sicherstellen: Close vorhanden
                 if "Close" not in df.columns:
                     raise ValueError(f"{t}: Spalte 'Close' fehlt")
 
-                # Sicherstellen: DatetimeIndex
-                # Index robust auf "timezone-naive datetime64[ns]" normalisieren
-                idx = pd.to_datetime(df.index, utc=True, errors="coerce")  # <- WICHTIG: utc=True
-                # falls irgendwas nicht konvertierbar ist, rausfiltern
+                idx = pd.to_datetime(df.index, utc=True, errors="coerce")
                 mask = ~pd.isna(idx)
                 df = df.loc[mask].copy()
-                df.index = pd.DatetimeIndex(idx[mask]).tz_convert(None)  # UTC -> naive
+                df.index = pd.DatetimeIndex(idx[mask]).tz_convert(None)
                 df = df.sort_index()
 
                 if use_custom:
                     df = df.loc[(df.index >= start_dt) & (df.index <= end_dt)]
 
-                # prüfen
                 if df is None or df.empty:
                     missing.append(t)
                     continue
-                    
-                # speichern/anhängen    
+
                 assets.append(Asset(t, df))
                 sources[t] = SOURCE_LABELS.get(source, source)
 
@@ -791,10 +792,11 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
                 missing.append(f"{t} ({e})")
 
         if len(assets) < 2:
-            return _empty_figure(), [], [], f"Zu wenige gültige Assets. Fehlend: {', '.join(missing), []}"
+            return _empty_figure(), [], [], f"Zu wenige gültige Assets. Fehlend: {', '.join(missing)}", []
 
         comp = Comparator(assets)
 
+        # --- Best/Worst Days ---
         bestworst_rows = []
         for asset in assets:
             best = asset.best_day(
@@ -811,9 +813,9 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
             bestworst_rows.append({
                 "ticker": asset.ticker,
                 "best_day": best["date"].date().isoformat() if best["date"] is not None else "-",
-                "best_return": round(best["return"] * 100, 2) if best["return"] is not None else "-",
+                "best_return": f'{best["return"] * 100:.2f} %' if best["return"] is not None else "-",
                 "worst_day": worst["date"].date().isoformat() if worst["date"] is not None else "-",
-                "worst_return": round(worst["return"] * 100, 2) if worst["return"] is not None else "-",
+                "worst_return": f'{worst["return"] * 100:.2f} %' if worst["return"] is not None else "-",
             })
 
         # --- Kennzahlen ---
@@ -837,6 +839,36 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
             .map(lambda x: METRIC_LABELS.get(x, x.replace("_", " ").title()))
         )
 
+        # -------------------------
+        # FORMATIERUNG
+        # -------------------------
+        PERCENT_METRICS = {"Volatility", "Drawdown", "Return Percentage (%)"}
+
+        def _fmt(metric_name: str, v):
+            if v is None:
+                return "-"
+            try:
+                v = float(v)
+                if np.isnan(v):
+                    return "-"
+            except Exception:
+                return str(v)
+
+            if metric_name in PERCENT_METRICS:
+                # wenn Anteil (0.31) -> *100; wenn schon Prozent (7.8) -> bleibt
+                if abs(v) <= 2.0:
+                    v = v * 100.0
+                return f"{v:.2f} %"
+
+            return f"{v:.2f}"
+
+        for i in range(len(table_df)):
+            metric_name = str(table_df.loc[i, "Metric"])
+            for col in table_df.columns:
+                if col in {"Metric", "Bewertung"}:
+                    continue
+                table_df.loc[i, col] = _fmt(metric_name, table_df.loc[i, col])
+
         # JSON-safe machen
         def _to_jsonable(x):
             if isinstance(x, (np.floating, np.integer)):
@@ -856,7 +888,10 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
             s = a.normalized_price_series(days=days)
             if s is not None and not s.empty:
                 fig.add_trace(
-                    go.Scatter(x=s.index, y=s.values, mode="lines", name=a.ticker)
+                    go.Scatter(x=s.index, y=s.values, mode="lines", name=a.ticker,        hovertemplate=(
+            "<b>%{fullData.name}</b><br>"
+            "Datum: %{x|%Y-%m-%d}<br>"
+            "Index: %{y:.2f}<extra></extra>"))
                 )
 
         fig.update_layout(
@@ -869,19 +904,16 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
         )
 
         status_parts = []
-
         if sources:
             src_text = ", ".join([f"{t}: {s}" for t, s in sources.items()])
             status_parts.append("Datenquellen: " + src_text)
-
         if missing:
             status_parts.append("Nicht geladen/fehlerhaft: " + ", ".join(missing))
-            
-        status = " | ".join(status_parts)   
+
+        status = " | ".join(status_parts)
 
         return fig, data, columns, status, bestworst_rows
 
-    # vollständigen Traceback im UI anzeigen
     except Exception:
         import traceback
         return (
@@ -889,6 +921,7 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
             [],
             [],
             traceback.format_exc(),
+            [],
         )
 
 
@@ -934,7 +967,6 @@ def update_portfolio(n_clicks, raw_tickers, base_currency):
         return _empty_figure(), [], [], " | ".join(status_lines)
 
     portfolio_index = build_equal_weight_portfolio_index(prices_base, base_value=100.0)
-
     fig = build_price_figure(prices_base, portfolio_index, base_currency=base_currency)
 
     combined = prices_base.copy()

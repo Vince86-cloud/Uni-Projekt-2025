@@ -192,8 +192,7 @@ portfolio.py sowie forecast.py.
 
 - Bewertung eines virtuellen Portfolios
 
-Die Darstellung ist bewusst interaktiv (Zoom, Hover, gemeinsame Zeitachse),
-um explorative Analyseprozesse zu unterstützen.
+Der Aufbau des Finanzdashboards folgt einem **praxisorientierten und systematischen Analyseprozess**, wie er in der Finanzberatung und im Asset Management etabliert ist. Die Analyse beginnt auf Einzeltitel-Ebene (Single Asset Analyse), um Eigenschaften, Risiken und Muster einzelner Wertpapiere isoliert zu erfassen. Darauf aufbauend ermöglicht der Asset-Vergleich eine **relative Bewertung mehrerer Assets**, was eine fundierte Vorauswahl unterstützt. Abschließend werden die ausgewählten Wertpapiere auf Portfolio-Ebene betrachtet, da sich Risiko- und Renditeeigenschaften erst im Zusammenspiel mehrerer Assets vollständig bewerten lassen. Die Darstellung ist bewusst interaktiv (Zoom, Hover, gemeinsame Zeitachse), um explorative Analyseprozesse zu unterstützen.
 
 **Aufbau: Tabs**
 
@@ -204,6 +203,13 @@ um explorative Analyseprozesse zu unterstützen.
 - Anzeige von Kurs, Kennzahlen und Indikatoren
 
 - Optionaler ARIMA-Forecast
+
+Zur Auswahl eines Assets stehen zwei Möglichkeiten zur Verfügung.
+Zum einen können vordefinierte, häufig verwendete Ticker über ein Dropdown-Menü ausgewählt werden (z. B. AAPL, MSFT).
+Dies erhöht die Anwenderfreundlichkeit, da viele Nutzer nicht mit den Abkürzungen sämtlicher Börsenticker vertraut sind.
+
+Zusätzlich befindet sich neben dem Dropdown ein Freitextfeld, über das weitere Ticker eingegeben werden können, die nicht in der Vorauswahl enthalten sind.
+Um einen Ticker über das Freitextfeld zu verwenden, muss zunächst die Auswahl im Dropdown entfernt werden (über das „×“-Symbol). Anschließend kann der gewünschte Ticker manuell eingegeben werden.
 
 2) Asset-Vergleich
 
