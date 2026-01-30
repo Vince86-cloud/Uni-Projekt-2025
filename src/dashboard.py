@@ -483,16 +483,16 @@ def compare_assets_layout():
                 style_header={"fontWeight": "bold"},
             ),
 
-            html.H3("Best / Worst Days (pro Asset)", style={"marginTop": "18px"}),
+            html.H3("Beste / schlechteste Tage (pro Asset)", style={"marginTop": "18px"}),
 
             dash_table.DataTable(
                 id="cmp-bestworst",
                 columns=[
                     {"name": "Ticker", "id": "ticker"},
-                    {"name": "Best Day", "id": "best_day"},
-                    {"name": "Best Return (%)", "id": "best_return"},
-                    {"name": "Worst Day", "id": "worst_day"},
-                    {"name": "Worst Return (%)", "id": "worst_return"},
+                    {"name": "Bester Tag", "id": "best_day"},
+                    {"name": "Beste Rendite (%)", "id": "best_return"},
+                    {"name": "Schlechtester Tag", "id": "worst_day"},
+                    {"name": "Schlechteste Rendite (%)", "id": "worst_return"},
                 ],
                 data=[],
                 style_table={"overflowX": "auto"},
@@ -813,28 +813,28 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
             bestworst_rows.append({
                 "ticker": asset.ticker,
                 "best_day": best["date"].date().isoformat() if best["date"] is not None else "-",
-                "best_return": f'{best["return"] * 100:.2f} %' if best["return"] is not None else "-",
+                "best_return": f'{best["return"] * 100:.2f}%' if best["return"] is not None else "-",
                 "worst_day": worst["date"].date().isoformat() if worst["date"] is not None else "-",
-                "worst_return": f'{worst["return"] * 100:.2f} %' if worst["return"] is not None else "-",
+                "worst_return": f'{worst["return"] * 100:.2f}%' if worst["return"] is not None else "-",
             })
 
         # --- Kennzahlen ---
         metrics = comp.collect_metrics(days=days)
         table_df = comp.compare_metrics(metrics)
 
-        table_df = table_df.reset_index().rename(columns={"index": "Metric"})
+        table_df = table_df.reset_index().rename(columns={"index": "Kennzahl"})
         table_df.columns = [str(c) for c in table_df.columns]
 
         METRIC_LABELS = {
-            "price_development": "Price Development",
-            "return_percentage": "Return Percentage (%)",
-            "normalized_performance": "Normalized Performance (Start=100)",
-            "volatility": "Volatility",
+            "price_development": "Preisentwicklung",
+            "return_percentage": "Rendite",
+            "normalized_performance": "Normierte Performance (Start=100)",
+            "volatility": "Volatilität",
             "drawdown": "Drawdown",
         }
 
-        table_df["Metric"] = (
-            table_df["Metric"]
+        table_df["Kennzahl"] = (
+            table_df["Kennzahl"]
             .astype(str)
             .map(lambda x: METRIC_LABELS.get(x, x.replace("_", " ").title()))
         )
@@ -842,7 +842,7 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
         # -------------------------
         # FORMATIERUNG
         # -------------------------
-        PERCENT_METRICS = {"Volatility", "Drawdown", "Return Percentage (%)"}
+        PERCENT_METRICS = {"Volatilität", "Drawdown", "Rendite"}
 
         def _fmt(metric_name: str, v):
             if v is None:
@@ -858,17 +858,28 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
                 # wenn Anteil (0.31) -> *100; wenn schon Prozent (7.8) -> bleibt
                 if abs(v) <= 2.0:
                     v = v * 100.0
-                return f"{v:.2f} %"
+                return f"{v:.2f}%"
 
             return f"{v:.2f}"
 
         for i in range(len(table_df)):
-            metric_name = str(table_df.loc[i, "Metric"])
+            metric_name = str(table_df.loc[i, "Kennzahl"])
             for col in table_df.columns:
-                if col in {"Metric", "Bewertung"}:
+                if col in {"Kennzahl", "Bewertung"}:
                     continue
-                table_df.loc[i, col] = _fmt(metric_name, table_df.loc[i, col])
 
+                is_percent_col = (
+                    "Relative Abweichung" in col
+                    or "(Abw. %)" in col
+                )
+
+                if is_percent_col:
+                    # immer Prozent formatieren
+                    v = table_df.loc[i, col]
+                    table_df.loc[i, col] = "" if v is None else f"{float(v):.2f}%"
+                else:
+                    table_df.loc[i, col] = _fmt(metric_name, table_df.loc[i, col])
+                    
         # JSON-safe machen
         def _to_jsonable(x):
             if isinstance(x, (np.floating, np.integer)):
