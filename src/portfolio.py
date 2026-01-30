@@ -417,8 +417,8 @@ def build_metrics_table(price_df_with_portfolio: pd.DataFrame) -> pd.DataFrame:
             sliced = slice_period(s, spec.years)
             m = compute_metrics_for_period(sliced)
 
-            row[f"{spec.label} Return"] = m["return"]
-            row[f"{spec.label} Volatility"] = m["vol"]
+            row[f"{spec.label} Rendite"] = m["return"]
+            row[f"{spec.label} Volatilität"] = m["vol"]
             row[f"{spec.label} Max Drawdown"] = m["mdd"]
 
         rows.append(row)

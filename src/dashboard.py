@@ -570,7 +570,7 @@ app.layout = _base_container(
     [
         html.H1("Finanz-Dashboard", style={"marginBottom": "6px"}),
         html.Div(
-            "Tabs: Single Asset Analysis • Compare Assets • Portfolio Analyse",
+            "Tabs: Einzel Asset Analyse • Asset Vergleich • Portfolio Analyse",
             style={"color": "#555", "marginBottom": "12px"},
         ),
 
@@ -578,8 +578,8 @@ app.layout = _base_container(
             id="tabs",
             value="tab-single",
             children=[
-                dcc.Tab(label="Single Asset Analysis", value="tab-single"),
-                dcc.Tab(label="Compare Assets", value="tab-compare"),
+                dcc.Tab(label="Einzel Asset Analyse", value="tab-single"),
+                dcc.Tab(label="Asset Vergleich", value="tab-compare"),
                 dcc.Tab(label="Portfolio Analyse", value="tab-portfolio"),
             ],
         ),
@@ -830,7 +830,7 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
             "return_percentage": "Rendite",
             "normalized_performance": "Normierte Performance (Start=100)",
             "volatility": "Volatilität",
-            "drawdown": "Drawdown",
+            "drawdown": "Max Drawdown",
         }
 
         table_df["Kennzahl"] = (
@@ -842,7 +842,7 @@ def update_compare(n_clicks, raw, period, days, date_mode, start_date, end_date)
         # -------------------------
         # FORMATIERUNG
         # -------------------------
-        PERCENT_METRICS = {"Volatilität", "Drawdown", "Rendite"}
+        PERCENT_METRICS = {"Volatilität", "Max Drawdown", "Rendite"}
 
         def _fmt(metric_name: str, v):
             if v is None:
