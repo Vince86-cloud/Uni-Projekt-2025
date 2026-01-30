@@ -295,7 +295,7 @@ def _base_container(children):
 def single_asset_layout():
     return html.Div(
         children=[
-            html.H2("Single Asset Analysis"),
+            html.H2("Einzel Asset Analyse"),
 
             html.Div(
                 style={
@@ -405,7 +405,7 @@ def single_asset_layout():
 def compare_assets_layout():
     return html.Div(
         children=[
-            html.H2("Compare Assets"),
+            html.H2("Asset Vergleich"),
 
             dcc.RadioItems(
                 id="compare-date-mode",
