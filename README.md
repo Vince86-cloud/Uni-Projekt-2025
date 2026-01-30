@@ -192,11 +192,11 @@ portfolio.py sowie forecast.py.
 
 - Bewertung eines virtuellen Portfolios
 
-Der Aufbau des Finanzdashboards folgt einem **praxisorientierten und systematischen Analyseprozess**, wie er in der Finanzberatung und im Asset Management etabliert ist. Die Analyse beginnt auf Einzeltitel-Ebene (Single Asset Analyse), um Eigenschaften, Risiken und Muster einzelner Wertpapiere isoliert zu erfassen. Darauf aufbauend ermöglicht der Asset-Vergleich eine **relative Bewertung mehrerer Assets**, was eine fundierte Vorauswahl unterstützt. Abschließend werden die ausgewählten Wertpapiere auf Portfolio-Ebene betrachtet, da sich Risiko- und Renditeeigenschaften erst im Zusammenspiel mehrerer Assets vollständig bewerten lassen. Die Darstellung ist bewusst interaktiv (Zoom, Hover, gemeinsame Zeitachse), um explorative Analyseprozesse zu unterstützen.
+Der Aufbau des Finanzdashboards folgt einem **praxisorientierten und systematischen Analyseprozess**, wie er in der Finanzberatung und im Asset Management etabliert ist. Die Analyse beginnt auf Einzeltitel-Ebene (Einzel Asset Analyse), um Eigenschaften, Risiken und Muster einzelner Wertpapiere isoliert zu erfassen. Darauf aufbauend ermöglicht der Asset-Vergleich eine **relative Bewertung mehrerer Assets**, was eine fundierte Vorauswahl unterstützt. Abschließend werden die ausgewählten Wertpapiere auf Portfolio-Ebene betrachtet, da sich Risiko- und Renditeeigenschaften erst im Zusammenspiel mehrerer Assets vollständig bewerten lassen. Die Darstellung ist bewusst interaktiv (Zoom, Hover, gemeinsame Zeitachse), um explorative Analyseprozesse zu unterstützen.
 
 **Aufbau: Tabs**
 
-1) Single Asset Analyse
+1) Einzel Asset Analyse
 
 - Analyse eines einzelnen Tickers
 
@@ -211,7 +211,7 @@ Dies erhöht die Anwenderfreundlichkeit, da viele Nutzer nicht mit den Abkürzun
 Zusätzlich befindet sich neben dem Dropdown ein Freitextfeld, über das weitere Ticker eingegeben werden können, die nicht in der Vorauswahl enthalten sind.
 Um einen Ticker über das Freitextfeld zu verwenden, muss zunächst die Auswahl im Dropdown entfernt werden (über das „×“-Symbol). Anschließend kann der gewünschte Ticker manuell eingegeben werden.
 
-2) Asset-Vergleich
+2) Asset Vergleich
 
 - Vergleich mehrerer Assets
 
@@ -219,7 +219,9 @@ Um einen Ticker über das Freitextfeld zu verwenden, muss zunächst die Auswahl 
 
 - Vergleichstabelle mit Kennzahlen
 
-3) Portfolio-Analyse
+- Weitere Kennzahlen
+
+3) Portfolio Analyse
 
 - Equal-Weight-Portfolio
 
@@ -239,7 +241,7 @@ Die Zeitreihenprognose basiert auf einem ARIMA-Modell (statsmodels) und ist opti
 
 **Mit installiertem statsmodels:**
 
-- zusätzliche Prognose inkl. Konfidenzintervall im Single-Asset-Tab
+- zusätzliche Prognose inkl. Konfidenzintervall im Einzel Asset Tab
 
 ***Hinweis***
 Das Fehlen des Pakets statsmodels schränkt ausschließlich die Prognosefunktion ein und beeinträchtigt nicht den Betrieb des Dashboards.
@@ -248,7 +250,6 @@ Das Fehlen des Pakets statsmodels schränkt ausschließlich die Prognosefunktion
 
 Das Projekt wird über die Datei main.py im Projekt-Root gestartet:
 python main.py
-
 
 Die Datei main.py fungiert als zentraler Einstiegspunkt und steuert,
 ob die Anwendung im CLI-Modus oder als Web-Dashboard gestartet wird.
@@ -260,5 +261,22 @@ Diese Struktur ermöglicht:
 - eine saubere Trennung von **Steuerungslogik (Programmfluss)** und **Fachlogik (Analyse, Berechnung, Visualisierung)**
 
 - gute Wartbarkeit und einfache Erweiterbarkeit
+
+**Quellen**
+
+- Python für alle, 1. Auflage 2022
+- Chatgpt 5.2
+
+**Verantwortlichkeiten**
+
+- data_fetch.py (Vincent Wisdorf)
+- analysis.py (Vincent Wisdorf)
+- visualization.py (Jasmin Mahieu)
+- comparison.py (Ufuk Türkkan)
+- portfolio.py (Simon Köffer)
+- forecast.py (Vincent Wisdorf)
+- dashboard.py (Jasmin Mahieu & Vincent Windorf)
+- main.py (Alle Gruppenteilnehmer)
+
 
 
